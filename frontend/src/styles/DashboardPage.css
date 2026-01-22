@@ -1,0 +1,143 @@
+.dashboard-page {
+  width: 100%;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+  color: #333;
+}
+
+.create-btn {
+  background: #4CAF50;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.create-btn:hover {
+  background: #45a049;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state p {
+  font-size: 1.2rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.tasks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.task-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.task-header h3 {
+  color: #333;
+  font-size: 1.25rem;
+}
+
+.state-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.state-draft {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.state-posted {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.state-matching {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.state-accepted {
+  background: #e8f5e9;
+  color: #388e3c;
+}
+
+.state-in_progress {
+  background: #e1f5fe;
+  color: #0277bd;
+}
+
+.state-completed {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.task-description {
+  color: #666;
+  margin-bottom: 1rem;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.task-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  color: #999;
+  margin-top: auto;
+}
+
+/* RTL adjustments */
+[dir="rtl"] .task-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .task-footer {
+  flex-direction: row-reverse;
+}

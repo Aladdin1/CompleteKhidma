@@ -14,6 +14,7 @@ import categoryRoutes from './categories.js';
 import notificationRoutes from './notifications.js';
 import webhookRoutes from './webhooks.js';
 import mediaRoutes from './media.js';
+import debugRoutes from './debug.js';
 
 const router = express.Router();
 
@@ -35,5 +36,6 @@ router.use('/categories', categoryRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/webhooks', webhookRoutes);
 router.use('/media', mediaRoutes);
+router.use('/debug', debugRoutes);
 
 export default router;

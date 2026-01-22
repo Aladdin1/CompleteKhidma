@@ -2,10 +2,107 @@ import express from 'express';
 import { z } from 'zod';
 import { authenticate, requireRole } from '../../middleware/auth.js';
 import { idempotency } from '../../middleware/idempotency.js';
+import { pagination, formatPaginatedResponse } from '../../middleware/pagination.js';
 import pool from '../../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
+
+/**
+ * GET /api/v1/bookings
+ * List bookings (for taskers to see their accepted tasks)
+ * Per user story US-T-022 to US-T-027: Taskers need to see and manage their accepted tasks
+ */
+router.get('/', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
+  try {
+    const taskerId = req.user.id;
+    const { limit, cursor } = req.pagination;
+    const { status } = req.query; // Optional filter by status
+
+    let query = `
+      SELECT 
+        b.*,
+        t.id as task_id,
+        t.client_id,
+        t.category,
+        t.description,
+        t.address,
+        t.city,
+        t.lat,
+        t.lng,
+        t.starts_at,
+        t.state as task_state
+      FROM bookings b
+      JOIN tasks t ON b.task_id = t.id
+      WHERE b.tasker_id = $1
+    `;
+
+    const params = [taskerId];
+    let paramIndex = 2;
+
+    // Filter by status if provided
+    if (status) {
+      query += ` AND b.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    // Exclude canceled and disputed bookings by default (unless specifically requested)
+    if (!status || (status !== 'canceled' && status !== 'disputed')) {
+      query += ` AND b.status NOT IN ('canceled', 'disputed')`;
+    }
+
+    // Cursor-based pagination
+    if (cursor) {
+      query += ` AND b.created_at < (SELECT created_at FROM bookings WHERE id = $${paramIndex})`;
+      params.push(cursor);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY b.created_at DESC LIMIT $${paramIndex}`;
+    params.push(limit + 1);
+
+    const result = await pool.query(query, params);
+    const bookings = result.rows.slice(0, limit);
+    const nextCursor = result.rows.length > limit ? bookings[bookings.length - 1].id : null;
+
+    const formattedBookings = bookings.map(booking => ({
+      id: booking.id,
+      task: {
+        id: booking.task_id,
+        client_id: booking.client_id,
+        category: booking.category,
+        description: booking.description,
+        location: {
+          address: booking.address,
+          city: booking.city,
+          point: {
+            lat: booking.lat,
+            lng: booking.lng
+          }
+        },
+        schedule: {
+          starts_at: booking.starts_at
+        },
+        state: booking.task_state
+      },
+      status: booking.status,
+      agreed_rate: {
+        currency: booking.agreed_rate_currency,
+        amount: booking.agreed_rate_amount
+      },
+      agreed_minimum_minutes: booking.agreed_minimum_minutes,
+      started_at: booking.started_at,
+      completed_at: booking.completed_at,
+      created_at: booking.created_at,
+      updated_at: booking.updated_at
+    }));
+
+    res.json(formatPaginatedResponse(formattedBookings, nextCursor));
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * POST /api/v1/bookings
@@ -20,8 +117,8 @@ router.post('/', authenticate, requireRole('client'), idempotency, async (req, r
       proposed_rate: z.object({
         currency: z.string(),
         amount: z.number()
-      }).optional(),
-      minimum_minutes: z.number().optional()
+      }).nullish(),
+      minimum_minutes: z.number().nullish()
     }).parse(req.body);
 
     // Verify task belongs to user
@@ -80,7 +177,7 @@ router.post('/', authenticate, requireRole('client'), idempotency, async (req, r
           task_id,
           tasker_id,
           proposed_rate?.amount || null,
-          proposed_rate?.currency || task.currency,
+          proposed_rate?.currency || task.currency || 'EGP',
           minimum_minutes || 60
         ]
       );

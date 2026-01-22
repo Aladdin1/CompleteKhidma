@@ -1,0 +1,65 @@
+.task-create-page {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.task-form {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-weight: 500;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+}
+
+.primary-btn {
+  background: #4CAF50;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.secondary-btn {
+  background: transparent;
+  color: #666;
+  border: 1px solid #ddd;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+}
+
+.secondary-btn:hover {
+  background: #f5f5f5;
+}
+
+/* RTL adjustments */
+[dir="rtl"] .form-actions {
+  flex-direction: row-reverse;
+}

@@ -34,12 +34,22 @@ export const idempotency = async (req, res, next) => {
   }
 
   try {
-    // Check if we've seen this key before
-    const cachedResponse = await redisClient.get(`idempotency:${idempotencyKey}`);
-    
-    if (cachedResponse) {
-      const { statusCode, body } = JSON.parse(cachedResponse);
-      return res.status(statusCode).json(body);
+    // Check if we've seen this key before (only if Redis is available)
+    if (redisClient.isOpen) {
+      try {
+        const cachedResponse = await Promise.race([
+          redisClient.get(`idempotency:${idempotencyKey}`),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 1000))
+        ]);
+        
+        if (cachedResponse) {
+          const { statusCode, body } = JSON.parse(cachedResponse);
+          return res.status(statusCode).json(body);
+        }
+      } catch (redisError) {
+        // Redis not available or timeout - continue without idempotency check
+        console.warn('Idempotency check skipped (Redis unavailable):', redisError.message);
+      }
     }
 
     // Store original json method
@@ -47,13 +57,16 @@ export const idempotency = async (req, res, next) => {
     
     // Override json to cache response
     res.json = function(body) {
-      // Cache successful responses (2xx)
-      if (res.statusCode >= 200 && res.statusCode < 300) {
+      // Cache successful responses (2xx) only if Redis is available
+      if (res.statusCode >= 200 && res.statusCode < 300 && redisClient.isOpen) {
         redisClient.setEx(
           `idempotency:${idempotencyKey}`,
           86400, // 24 hours
           JSON.stringify({ statusCode: res.statusCode, body })
-        ).catch(console.error);
+        ).catch((err) => {
+          // Silently fail - idempotency caching is optional
+          console.warn('Failed to cache idempotency response:', err.message);
+        });
       }
       
       return originalJson(body);
@@ -62,6 +75,6 @@ export const idempotency = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Idempotency middleware error:', error);
-    next(); // Continue on Redis errors
+    next(); // Continue on any errors
   }
 };

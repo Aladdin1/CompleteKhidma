@@ -3,7 +3,18 @@
  * Formats errors according to OpenAPI error model
  */
 export const errorHandler = (err, req, res, next) => {
-  console.error('Error:', err);
+  // Safely log error without circular reference issues
+  try {
+    console.error('Error:', {
+      name: err?.name,
+      message: err?.message,
+      code: err?.code,
+      statusCode: err?.statusCode,
+      stack: err?.stack?.split('\n').slice(0, 5).join('\n') // First 5 lines of stack
+    });
+  } catch (logError) {
+    console.error('Error occurred (could not log details):', err?.message || String(err));
+  }
 
   // Validation errors
   if (err.name === 'ValidationError' || err.name === 'ZodError') {
@@ -12,6 +23,20 @@ export const errorHandler = (err, req, res, next) => {
         code: 'VALIDATION_ERROR',
         message: err.message || 'Validation failed',
         details: err.errors || err.issues
+      }
+    });
+  }
+
+  // Database connection errors
+  if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.message?.includes('connect')) {
+    return res.status(503).json({
+      error: {
+        code: 'DATABASE_UNAVAILABLE',
+        message: 'Database service is not available',
+        details: {
+          hint: 'Please ensure PostgreSQL is running',
+          error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        }
       }
     });
   }

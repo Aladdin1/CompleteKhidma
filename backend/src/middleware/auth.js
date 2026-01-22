@@ -21,13 +21,42 @@ export const authenticate = async (req, res, next) => {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Fetch user from database
-    const result = await pool.query(
-      'SELECT id, role, phone, email, full_name, locale FROM users WHERE id = $1',
-      [decoded.userId]
-    );
+    // Fetch user from database (always get latest role from DB, not from token)
+    try {
+      const result = await pool.query(
+        'SELECT id, role, phone, email, full_name, locale FROM users WHERE id = $1',
+        [decoded.userId]
+      );
 
-    if (result.rows.length === 0) {
+      if (result.rows.length === 0) {
+        throw new Error('User not found in database');
+      }
+
+      req.user = result.rows[0];
+      
+      // Log for debugging (can remove in production)
+      if (process.env.NODE_ENV === 'development' && decoded.role !== req.user.role) {
+        console.log(`⚠️  Role mismatch: Token has '${decoded.role}' but DB has '${req.user.role}' for user ${decoded.userId}`);
+      }
+      
+      return next();
+    } catch (dbError) {
+      // Fallback: Check in-memory user store if database is not available
+      if (global.userStore) {
+        const user = Array.from(global.userStore.values()).find(u => u.id === decoded.userId);
+        if (user) {
+          req.user = {
+            id: user.id,
+            role: user.role,
+            phone: user.phone,
+            email: user.email,
+            full_name: user.full_name,
+            locale: user.locale
+          };
+          return next();
+        }
+      }
+      
       return res.status(401).json({
         error: {
           code: 'UNAUTHORIZED',
@@ -35,9 +64,6 @@ export const authenticate = async (req, res, next) => {
         }
       });
     }
-
-    req.user = result.rows[0];
-    next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       return res.status(401).json({
@@ -61,15 +87,36 @@ export const optionalAuth = async (req, res, next) => {
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
-      const result = await pool.query(
-        'SELECT id, role, phone, email, full_name, locale FROM users WHERE id = $1',
-        [decoded.userId]
-      );
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        try {
+          const result = await pool.query(
+            'SELECT id, role, phone, email, full_name, locale FROM users WHERE id = $1',
+            [decoded.userId]
+          );
 
-      if (result.rows.length > 0) {
-        req.user = result.rows[0];
+          if (result.rows.length > 0) {
+            req.user = result.rows[0];
+          }
+        } catch (dbError) {
+          // Fallback: Check in-memory user store
+          if (global.userStore) {
+            const user = Array.from(global.userStore.values()).find(u => u.id === decoded.userId);
+            if (user) {
+              req.user = {
+                id: user.id,
+                role: user.role,
+                phone: user.phone,
+                email: user.email,
+                full_name: user.full_name,
+                locale: user.locale
+              };
+            }
+          }
+        }
+      } catch (jwtError) {
+        // Ignore JWT errors for optional auth
       }
     }
     
@@ -82,6 +129,7 @@ export const optionalAuth = async (req, res, next) => {
 
 /**
  * Role-based authorization middleware
+ * Special rule: Taskers can also access client endpoints (since they can post tasks too)
  */
 export const requireRole = (...roles) => {
   return (req, res, next) => {
@@ -94,11 +142,26 @@ export const requireRole = (...roles) => {
       });
     }
 
-    if (!roles.includes(req.user.role)) {
+    const userRole = req.user.role;
+    const allowedRoles = [...roles];
+    
+    // Special rule: taskers can access client endpoints
+    // This allows taskers to post tasks and use client features
+    if (userRole === 'tasker' && roles.includes('client')) {
+      return next();
+    }
+
+    if (!allowedRoles.includes(userRole)) {
+      // Enhanced error message with debugging info
+      const errorMsg = `Insufficient permissions. Your current role is '${userRole}', but this endpoint requires: ${roles.join(' or ')}. Please ensure your role is correctly set in the database and logout/login to get a new token.`;
+      console.log(`⚠️  Access denied: User ${req.user.id} (${req.user.phone}) has role '${userRole}', required: ${roles.join(', ')}`);
       return res.status(403).json({
         error: {
           code: 'FORBIDDEN',
-          message: 'Insufficient permissions'
+          message: errorMsg,
+          current_role: userRole,
+          required_roles: roles,
+          user_id: req.user.id
         }
       });
     }

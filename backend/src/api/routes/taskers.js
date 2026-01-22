@@ -11,19 +11,62 @@ const router = express.Router();
 /**
  * GET /api/v1/taskers/me/profile
  * Get my tasker profile
+ * NOTE: Must be defined BEFORE /:tasker_id/profile to prevent route conflict
  */
 router.get('/me/profile', authenticate, requireRole('tasker'), async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
+
+    // Validate userId is present and is a valid UUID
+    if (!userId) {
+      console.error('No user ID in request:', req.user);
+      return res.status(401).json({
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'User ID not found in authentication token'
+        }
+      });
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      console.error(`Invalid userId format: "${userId}", user object:`, req.user);
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_USER_ID',
+          message: `Invalid user ID format: "${userId}". Expected a valid UUID. This suggests the authentication token has an invalid user ID.`
+        }
+      });
+    }
 
     // Get tasker profile
-    const profileResult = await pool.query(
-      `SELECT tp.*, u.phone, u.email, u.full_name, u.locale
-       FROM tasker_profiles tp
-       JOIN users u ON tp.user_id = u.id
-       WHERE tp.user_id = $1`,
-      [userId]
-    );
+    console.log(`Loading tasker profile for userId: ${userId} (type: ${typeof userId})`);
+    let profileResult;
+    try {
+      profileResult = await pool.query(
+        `SELECT tp.*, u.phone, u.email, u.full_name, u.locale
+         FROM tasker_profiles tp
+         JOIN users u ON tp.user_id = u.id
+         WHERE tp.user_id = $1`,
+        [userId]
+      );
+    } catch (queryError) {
+      // Catch UUID errors specifically
+      if (queryError.message && queryError.message.includes('invalid input syntax for type uuid')) {
+        console.error('UUID validation error in tasker profile query:', {
+          userId,
+          error: queryError.message,
+          userObject: req.user
+        });
+        return res.status(400).json({
+          error: {
+            code: 'INVALID_USER_ID',
+            message: `Invalid user ID format: "${userId}". Expected a valid UUID. This suggests the authentication token has an invalid user ID.`
+          }
+        });
+      }
+      throw queryError; // Re-throw other errors
+    }
 
     if (profileResult.rows.length === 0) {
       return res.status(404).json({
@@ -70,9 +113,105 @@ router.get('/me/profile', authenticate, requireRole('tasker'), async (req, res, 
       rating: {
         average: parseFloat(profile.rating_avg),
         count: profile.rating_count
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/taskers/:tasker_id/profile
+ * Get tasker profile (for clients to view tasker details)
+ * Per user story US-C-012: "As a client, I want to view tasker profiles with ratings, reviews, and skills"
+ */
+router.get('/:tasker_id/profile', authenticate, async (req, res, next) => {
+  try {
+    let { tasker_id } = req.params;
+
+    // Handle "me" - redirect to authenticated user's profile (fallback if route order is wrong)
+    if (tasker_id === 'me') {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required'
+          }
+        });
+      }
+      // Use authenticated user's ID
+      tasker_id = userId;
+    }
+
+    // Validate tasker_id is a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(tasker_id)) {
+      console.error(`Invalid tasker_id format: "${tasker_id}"`);
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_UUID',
+          message: `Invalid tasker ID format: "${tasker_id}". Expected a valid UUID or "me".`
+        }
+      });
+    }
+
+    // Get tasker profile
+    const profileResult = await pool.query(
+      `SELECT tp.*, u.phone, u.email, u.full_name, u.locale, uv.verification_status, uv.verified_at
+       FROM tasker_profiles tp
+       JOIN users u ON tp.user_id = u.id
+       LEFT JOIN user_verifications uv ON tp.user_id = uv.user_id
+       WHERE tp.user_id = $1`,
+      [tasker_id]
+    );
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Tasker profile not found'
+        }
+      });
+    }
+
+    const profile = profileResult.rows[0];
+
+    // Get categories, skills, and service area
+    const [categoriesResult, skillsResult, serviceAreaResult] = await Promise.all([
+      pool.query('SELECT category FROM tasker_categories WHERE tasker_id = $1', [tasker_id]),
+      pool.query('SELECT skill FROM tasker_skills WHERE tasker_id = $1', [tasker_id]),
+      pool.query('SELECT center_lat, center_lng, radius_km FROM tasker_service_areas WHERE tasker_id = $1', [tasker_id])
+    ]);
+
+    res.json({
+      user_id: profile.user_id,
+      full_name: profile.full_name,
+      phone: profile.phone, // Clients can see phone for contact
+      bio: profile.bio,
+      status: profile.status,
+      categories: categoriesResult.rows.map(r => r.category),
+      skills: skillsResult.rows.map(r => r.skill),
+      service_area: serviceAreaResult.rows.length > 0 ? {
+        center: {
+          lat: serviceAreaResult.rows[0].center_lat,
+          lng: serviceAreaResult.rows[0].center_lng
+        },
+        radius_km: serviceAreaResult.rows[0].radius_km
+      } : null,
+      rating: {
+        average: parseFloat(profile.rating_avg) || 0,
+        count: profile.rating_count || 0
       },
-      acceptance_rate: parseFloat(profile.acceptance_rate),
-      completion_rate: parseFloat(profile.completion_rate)
+      verification: {
+        status: profile.verification_status || 'unverified',
+        verified_at: profile.verified_at,
+        is_verified: profile.verification_status === 'verified' || profile.status === 'verified'
+      },
+      stats: {
+        acceptance_rate: parseFloat(profile.acceptance_rate) || 0,
+        completion_rate: parseFloat(profile.completion_rate) || 0
+      }
     });
   } catch (error) {
     next(error);
