@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { taskAPI } from '../services/api';
+import { taskAPI, userAPI } from '../services/api';
 import '../styles/TaskCreatePage.css';
 
 const CATEGORIES = [
@@ -21,16 +21,82 @@ function TaskCreatePage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [addresses, setAddresses] = useState([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [addressMode, setAddressMode] = useState('saved'); // 'saved' or 'manual'
+  const [selectedAddressId, setSelectedAddressId] = useState('');
   const [formData, setFormData] = useState({
     category: '',
     description: '',
     address: '',
     city: 'Cairo',
+    district: '',
     lat: 30.0444,
     lng: 31.2357,
     starts_at: '',
     flexibility_minutes: 0,
   });
+
+  useEffect(() => {
+    loadAddresses();
+  }, []);
+
+  const loadAddresses = async () => {
+    try {
+      setLoadingAddresses(true);
+      const savedAddresses = await userAPI.getAddresses();
+      setAddresses(savedAddresses);
+      
+      // Set default address if available
+      const defaultAddress = savedAddresses.find(addr => addr.is_default);
+      if (defaultAddress) {
+        setSelectedAddressId(defaultAddress.id);
+        populateAddressFields(defaultAddress);
+        setAddressMode('saved');
+      } else if (savedAddresses.length > 0) {
+        setSelectedAddressId(savedAddresses[0].id);
+        populateAddressFields(savedAddresses[0]);
+        setAddressMode('saved');
+      } else {
+        setAddressMode('manual');
+      }
+    } catch (err) {
+      console.error('Failed to load addresses:', err);
+      setAddressMode('manual');
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
+
+  const populateAddressFields = (address) => {
+    setFormData(prev => ({
+      ...prev,
+      address: address.address_line1 + (address.address_line2 ? `, ${address.address_line2}` : ''),
+      city: address.city,
+      district: address.district || '',
+      lat: address.latitude || 30.0444,
+      lng: address.longitude || 31.2357,
+    }));
+  };
+
+  const handleAddressSelect = (addressId) => {
+    if (addressId === '') {
+      setSelectedAddressId('');
+      setFormData(prev => ({
+        ...prev,
+        address: '',
+        city: 'Cairo',
+        district: '',
+      }));
+      return;
+    }
+
+    const selectedAddress = addresses.find(addr => addr.id === addressId);
+    if (selectedAddress) {
+      setSelectedAddressId(addressId);
+      populateAddressFields(selectedAddress);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -44,6 +110,7 @@ function TaskCreatePage() {
         location: {
           address: formData.address,
           city: formData.city,
+          district: formData.district || undefined,
           point: {
             lat: formData.lat,
             lng: formData.lng,
@@ -73,6 +140,11 @@ function TaskCreatePage() {
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    // If manually editing address, switch to manual mode
+    if (field === 'address' || field === 'city' || field === 'district') {
+      setAddressMode('manual');
+      setSelectedAddressId('');
+    }
   };
 
   return (
@@ -114,31 +186,123 @@ function TaskCreatePage() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="address">{t('task.location')}</label>
-          <input
-            id="address"
-            type="text"
-            value={formData.address}
-            onChange={(e) => handleChange('address', e.target.value)}
-            required
-            placeholder="العنوان بالتفصيل"
-          />
+          <div className="address-selection-header">
+            <label htmlFor="address-select">{t('task.location')}</label>
+            <div className="address-mode-switch">
+              <button
+                type="button"
+                className={`mode-btn ${addressMode === 'saved' ? 'active' : ''}`}
+                onClick={() => {
+                  setAddressMode('saved');
+                  if (addresses.length > 0 && !selectedAddressId) {
+                    setSelectedAddressId(addresses[0].id);
+                    populateAddressFields(addresses[0]);
+                  }
+                }}
+                disabled={addresses.length === 0}
+              >
+                {t('task.useSavedAddress')}
+              </button>
+              <button
+                type="button"
+                className={`mode-btn ${addressMode === 'manual' ? 'active' : ''}`}
+                onClick={() => {
+                  setAddressMode('manual');
+                  setSelectedAddressId('');
+                }}
+              >
+                {t('task.enterManually')}
+              </button>
+            </div>
+          </div>
+
+          {addressMode === 'saved' && addresses.length > 0 ? (
+            <>
+              <select
+                id="address-select"
+                value={selectedAddressId}
+                onChange={(e) => handleAddressSelect(e.target.value)}
+                required
+                className="address-select"
+              >
+                <option value="">{t('task.selectAddress')}</option>
+                {addresses.map((addr) => (
+                  <option key={addr.id} value={addr.id}>
+                    {addr.label} {addr.is_default ? `(${t('profile.default')})` : ''} - {addr.address_line1}, {addr.city}
+                  </option>
+                ))}
+              </select>
+              <div className="address-actions">
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => navigate('/profile?tab=addresses')}
+                >
+                  {t('task.manageAddresses')}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <input
+                id="address"
+                type="text"
+                value={formData.address}
+                onChange={(e) => handleChange('address', e.target.value)}
+                required
+                placeholder={t('task.addressPlaceholder')}
+              />
+              {addresses.length > 0 && (
+                <div className="address-actions">
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => {
+                      setAddressMode('saved');
+                      if (addresses.length > 0) {
+                        setSelectedAddressId(addresses[0].id);
+                        populateAddressFields(addresses[0]);
+                      }
+                    }}
+                  >
+                    {t('task.useSavedAddress')}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="city">المدينة</label>
+            <label htmlFor="city">{t('task.city')}</label>
             <input
               id="city"
               type="text"
               value={formData.city}
               onChange={(e) => handleChange('city', e.target.value)}
               required
+              disabled={addressMode === 'saved' && selectedAddressId}
             />
           </div>
 
+          {formData.district && (
+            <div className="form-group">
+              <label htmlFor="district">{t('task.district')}</label>
+              <input
+                id="district"
+                type="text"
+                value={formData.district}
+                onChange={(e) => handleChange('district', e.target.value)}
+                disabled={addressMode === 'saved' && selectedAddressId}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="form-row">
           <div className="form-group">
-            <label htmlFor="starts_at">الموعد</label>
+            <label htmlFor="starts_at">{t('task.schedule')}</label>
             <input
               id="starts_at"
               type="datetime-local"
