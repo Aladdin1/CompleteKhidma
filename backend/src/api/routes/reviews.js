@@ -42,10 +42,10 @@ router.post('/', authenticate, idempotency, async (req, res, next) => {
 
     const booking = bookingResult.rows[0];
 
-    // Check if review already exists
+    // Check if review already exists for this user
     const existingReview = await pool.query(
-      'SELECT * FROM reviews WHERE booking_id = $1',
-      [booking_id]
+      'SELECT * FROM reviews WHERE booking_id = $1 AND reviewer_id = $2',
+      [booking_id, userId]
     );
 
     if (existingReview.rows.length > 0) {

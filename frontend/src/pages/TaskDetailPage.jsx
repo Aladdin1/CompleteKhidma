@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { taskAPI, taskerAPI } from '../services/api';
 import useAuthStore from '../store/authStore';
+import ReviewForm from '../components/ReviewForm';
 import '../styles/TaskDetailPage.css';
 
 function TaskDetailPage() {
@@ -22,6 +23,8 @@ function TaskDetailPage() {
     starts_at: '',
     flexibility_minutes: 0,
   });
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(false);
 
   useEffect(() => {
     loadTask();
@@ -161,6 +164,14 @@ function TaskDetailPage() {
 
   // Check if current user is the task owner (client)
   const isTaskOwner = task && user && task.client_id === user.id;
+  
+  // Check if current user is the assigned tasker
+  const isAssignedTasker = task && user && task.assigned_tasker?.user_id === user.id;
+  
+  // Check if user can review (either task owner or assigned tasker)
+  const canReview = (isTaskOwner || isAssignedTasker) && 
+                    (task?.state === 'completed' || task?.state === 'reviewed') &&
+                    task?.assigned_tasker?.booking_id;
 
   const getStateLabel = (state) => {
     const stateMap = {
@@ -170,6 +181,7 @@ function TaskDetailPage() {
       accepted: t('task.accepted'),
       in_progress: t('task.inProgress'),
       completed: t('task.completed'),
+      reviewed: t('task.reviewed') || 'تم التقييم',
     };
     return stateMap[state] || state;
   };
@@ -431,6 +443,45 @@ function TaskDetailPage() {
               <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
                 <p>اضغط على الزر أعلاه لعرض العمال المتاحين</p>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Show review form for completed tasks */}
+        {canReview && !hasReviewed && (
+          <div className="task-section">
+            {!showReviewForm ? (
+              <div className="review-prompt">
+                <h3>{t('task.review')}</h3>
+                <p>
+                  {isTaskOwner 
+                    ? (t('task.rateTasker') || 'قيم العامل')
+                    : (t('task.rateClient') || 'قيم العميل')
+                  }
+                </p>
+                <button
+                  onClick={() => setShowReviewForm(true)}
+                  className="primary-btn"
+                >
+                  {t('task.writeReview') || 'اكتب تقييم'}
+                </button>
+              </div>
+            ) : (
+              <ReviewForm
+                bookingId={task.assigned_tasker.booking_id}
+                revieweeName={
+                  isTaskOwner 
+                    ? task.assigned_tasker.full_name
+                    : (t('task.client') || 'العميل')
+                }
+                onSuccess={() => {
+                  setShowReviewForm(false);
+                  setHasReviewed(true);
+                  loadTask(); // Reload to refresh task state
+                  alert(t('task.reviewSubmitted') || 'تم إرسال التقييم بنجاح');
+                }}
+                onCancel={() => setShowReviewForm(false)}
+              />
             )}
           </div>
         )}

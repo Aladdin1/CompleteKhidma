@@ -311,4 +311,20 @@ export const bookingAPI = {
   },
 };
 
+// Review API
+export const reviewAPI = {
+  create: async (bookingId, reviewData) => {
+    const idempotencyKey = crypto.randomUUID();
+    const response = await api.post('/reviews', {
+      booking_id: bookingId,
+      ...reviewData
+    }, {
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
+    });
+    return response.data;
+  },
+};
+
 export default api;
