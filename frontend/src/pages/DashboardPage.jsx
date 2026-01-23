@@ -94,18 +94,21 @@ function DashboardPage() {
 
   const handleDuplicate = async (task) => {
     try {
+      const loc = {
+        address: task.location?.address || '',
+        city: task.location?.city || 'Cairo',
+        point: {
+          lat: task.location?.point?.lat ?? 30.0444,
+          lng: task.location?.point?.lng ?? 31.2357,
+        },
+      };
+      if (task.location?.district != null && task.location.district !== '') {
+        loc.district = task.location.district;
+      }
       const taskData = {
         category: task.category,
         description: task.description,
-        location: {
-          address: task.location?.address || '',
-          city: task.location?.city || 'Cairo',
-          district: task.location?.district,
-          point: {
-            lat: task.location?.point?.lat || 30.0444,
-            lng: task.location?.point?.lng || 31.2357,
-          },
-        },
+        location: loc,
         schedule: {
           starts_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
           flexibility_minutes: task.schedule?.flexibility_minutes || 0,

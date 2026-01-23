@@ -300,6 +300,11 @@ export const bookingAPI = {
     return response.data;
   },
 
+  markArrived: async (bookingId) => {
+    const response = await api.post(`/bookings/${bookingId}/arrived`);
+    return response.data;
+  },
+
   cancel: async (bookingId, reason) => {
     const response = await api.post(`/bookings/${bookingId}/cancel`, { reason });
     return response.data;

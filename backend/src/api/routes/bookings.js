@@ -11,13 +11,14 @@ const router = express.Router();
 /**
  * GET /api/v1/bookings
  * List bookings (for taskers to see their accepted tasks)
- * Per user story US-T-022 to US-T-027: Taskers need to see and manage their accepted tasks
+ * US-T-049, US-T-050, US-T-084: search, filter, sort, client info
+ * Query: status, category, q (search), date_from, date_to, sort (newest|oldest|earnings_desc)
  */
 router.get('/', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
   try {
     const taskerId = req.user.id;
     const { limit, cursor } = req.pagination;
-    const { status } = req.query; // Optional filter by status
+    const { status, category, q, date_from, date_to, sort } = req.query;
 
     let query = `
       SELECT 
@@ -31,35 +32,62 @@ router.get('/', authenticate, requireRole('tasker'), pagination, async (req, res
         t.lat,
         t.lng,
         t.starts_at,
-        t.state as task_state
+        t.state as task_state,
+        u.full_name as client_name
       FROM bookings b
       JOIN tasks t ON b.task_id = t.id
+      LEFT JOIN users u ON t.client_id = u.id
       WHERE b.tasker_id = $1
     `;
 
     const params = [taskerId];
     let paramIndex = 2;
 
-    // Filter by status if provided
     if (status) {
       query += ` AND b.status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
-    }
-
-    // Exclude canceled and disputed bookings by default (unless specifically requested)
-    if (!status || (status !== 'canceled' && status !== 'disputed')) {
+    } else {
       query += ` AND b.status NOT IN ('canceled', 'disputed')`;
     }
 
-    // Cursor-based pagination
+    if (category) {
+      query += ` AND t.category = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+
+    if (q && q.trim()) {
+      const qVal = `%${q.trim()}%`;
+      query += ` AND (t.description ILIKE $${paramIndex} OR t.category ILIKE $${paramIndex + 1} OR u.full_name ILIKE $${paramIndex + 2})`;
+      params.push(qVal, qVal, qVal);
+      paramIndex += 3;
+    }
+
+    if (date_from) {
+      query += ` AND t.starts_at >= $${paramIndex}::timestamptz`;
+      params.push(date_from);
+      paramIndex++;
+    }
+
+    if (date_to) {
+      query += ` AND t.starts_at <= $${paramIndex}::timestamptz`;
+      params.push(date_to);
+      paramIndex++;
+    }
+
     if (cursor) {
       query += ` AND b.created_at < (SELECT created_at FROM bookings WHERE id = $${paramIndex})`;
       params.push(cursor);
       paramIndex++;
     }
 
-    query += ` ORDER BY b.created_at DESC LIMIT $${paramIndex}`;
+    const orderBy = sort === 'oldest'
+      ? 'b.created_at ASC'
+      : sort === 'earnings_desc'
+        ? 'b.agreed_rate_amount DESC NULLS LAST, b.created_at DESC'
+        : 'b.created_at DESC';
+    query += ` ORDER BY ${orderBy} LIMIT $${paramIndex}`;
     params.push(limit + 1);
 
     const result = await pool.query(query, params);
@@ -71,19 +99,15 @@ router.get('/', authenticate, requireRole('tasker'), pagination, async (req, res
       task: {
         id: booking.task_id,
         client_id: booking.client_id,
+        client_name: booking.client_name || null,
         category: booking.category,
         description: booking.description,
         location: {
           address: booking.address,
           city: booking.city,
-          point: {
-            lat: booking.lat,
-            lng: booking.lng
-          }
+          point: { lat: booking.lat, lng: booking.lng }
         },
-        schedule: {
-          starts_at: booking.starts_at
-        },
+        schedule: { starts_at: booking.starts_at },
         state: booking.task_state
       },
       status: booking.status,
@@ -92,6 +116,7 @@ router.get('/', authenticate, requireRole('tasker'), pagination, async (req, res
         amount: booking.agreed_rate_amount
       },
       agreed_minimum_minutes: booking.agreed_minimum_minutes,
+      arrived_at: booking.arrived_at,
       started_at: booking.started_at,
       completed_at: booking.completed_at,
       created_at: booking.created_at,
@@ -266,10 +291,58 @@ router.get('/:booking_id', authenticate, async (req, res, next) => {
         amount: booking.agreed_rate_amount
       },
       agreed_minimum_minutes: booking.agreed_minimum_minutes,
+      arrived_at: booking.arrived_at,
       started_at: booking.started_at,
       completed_at: booking.completed_at,
       created_at: booking.created_at
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/bookings/:booking_id/arrived
+ * Mark tasker as arrived (US-T-060). Only when status is 'confirmed'.
+ */
+router.post('/:booking_id/arrived', authenticate, requireRole('tasker'), async (req, res, next) => {
+  try {
+    const { booking_id } = req.params;
+    const userId = req.user.id;
+
+    const r = await pool.query(
+      `SELECT b.status, b.arrived_at FROM bookings b WHERE b.id = $1 AND b.tasker_id = $2`,
+      [booking_id, userId]
+    );
+    if (r.rows.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Booking not found' }
+      });
+    }
+    const { status, arrived_at } = r.rows[0];
+    if (status !== 'confirmed') {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_STATE',
+          message: 'Can only mark arrived when booking is confirmed'
+        }
+      });
+    }
+    if (arrived_at) {
+      return res.status(400).json({
+        error: { code: 'ALREADY_ARRIVED', message: 'Already marked as arrived' }
+      });
+    }
+
+    await pool.query(
+      `UPDATE bookings SET arrived_at = now(), updated_at = now() WHERE id = $1`,
+      [booking_id]
+    );
+    const updated = await pool.query(
+      'SELECT arrived_at FROM bookings WHERE id = $1',
+      [booking_id]
+    );
+    res.json({ arrived_at: updated.rows[0].arrived_at });
   } catch (error) {
     next(error);
   }

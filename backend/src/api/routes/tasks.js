@@ -27,7 +27,7 @@ router.post('/', authenticate, requireRole('client'), idempotency, async (req, r
           lng: z.number()
         }),
         city: z.string(),
-        district: z.string().optional()
+        district: z.string().nullish()
       }),
       schedule: z.object({
         starts_at: z.string().datetime(),
