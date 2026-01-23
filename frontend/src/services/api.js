@@ -101,6 +101,60 @@ export const userAPI = {
     const response = await api.post('/users/me/become-tasker');
     return response.data;
   },
+
+  // Address management
+  getAddresses: async () => {
+    const response = await api.get('/users/me/addresses');
+    return response.data;
+  },
+
+  createAddress: async (addressData) => {
+    const response = await api.post('/users/me/addresses', addressData);
+    return response.data;
+  },
+
+  updateAddress: async (addressId, addressData) => {
+    const response = await api.patch(`/users/me/addresses/${addressId}`, addressData);
+    return response.data;
+  },
+
+  deleteAddress: async (addressId) => {
+    const response = await api.delete(`/users/me/addresses/${addressId}`);
+    return response.data;
+  },
+
+  // Phone number change
+  changePhone: async (newPhone) => {
+    const response = await api.post('/users/me/change-phone', { new_phone: newPhone });
+    return response.data;
+  },
+
+  verifyPhoneChange: async (newPhone, otp) => {
+    const response = await api.post('/users/me/verify-phone-change', { new_phone: newPhone, otp });
+    return response.data;
+  },
+
+  // Notification preferences
+  getNotificationPreferences: async () => {
+    const response = await api.get('/users/me/notification-preferences');
+    return response.data;
+  },
+
+  updateNotificationPreferences: async (preferences) => {
+    const response = await api.patch('/users/me/notification-preferences', preferences);
+    return response.data;
+  },
+
+  // Account management
+  deactivateAccount: async (reason) => {
+    const response = await api.post('/users/me/deactivate', { reason });
+    return response.data;
+  },
+
+  deleteAccount: async () => {
+    const response = await api.delete('/users/me');
+    return response.data;
+  },
 };
 
 // Task API
@@ -246,8 +300,29 @@ export const bookingAPI = {
     return response.data;
   },
 
+  markArrived: async (bookingId) => {
+    const response = await api.post(`/bookings/${bookingId}/arrived`);
+    return response.data;
+  },
+
   cancel: async (bookingId, reason) => {
     const response = await api.post(`/bookings/${bookingId}/cancel`, { reason });
+    return response.data;
+  },
+};
+
+// Review API
+export const reviewAPI = {
+  create: async (bookingId, reviewData) => {
+    const idempotencyKey = crypto.randomUUID();
+    const response = await api.post('/reviews', {
+      booking_id: bookingId,
+      ...reviewData
+    }, {
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
+    });
     return response.data;
   },
 };

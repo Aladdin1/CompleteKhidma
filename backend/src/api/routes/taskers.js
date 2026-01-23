@@ -111,8 +111,12 @@ router.get('/me/profile', authenticate, requireRole('tasker'), async (req, res, 
         radius_km: serviceAreaResult.rows[0].radius_km
       } : null,
       rating: {
-        average: parseFloat(profile.rating_avg),
-        count: profile.rating_count
+        average: parseFloat(profile.rating_avg) || 0,
+        count: profile.rating_count || 0
+      },
+      stats: {
+        acceptance_rate: parseFloat(profile.acceptance_rate) || 0,
+        completion_rate: parseFloat(profile.completion_rate) || 0
       }
     });
   } catch (error) {
@@ -342,13 +346,23 @@ router.patch('/me/profile', authenticate, requireRole('tasker'), async (req, res
 /**
  * GET /api/v1/taskers/me/tasks/available
  * Get available tasks for tasker (in their service area)
+ * US-T-082: filter by category, max_distance_km, min_price, max_price, starts_after, starts_before, sort
+ * US-T-084: include client_name
  */
 router.get('/me/tasks/available', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { limit, cursor } = req.pagination;
+    const {
+      category,
+      max_distance_km,
+      min_price,
+      max_price,
+      starts_after,
+      starts_before,
+      sort
+    } = req.query;
 
-    // Get tasker service area
     const serviceAreaResult = await pool.query(
       'SELECT center_lat, center_lng, radius_km FROM tasker_service_areas WHERE tasker_id = $1',
       [userId]
@@ -360,33 +374,65 @@ router.get('/me/tasks/available', authenticate, requireRole('tasker'), paginatio
 
     const { center_lat, center_lng, radius_km } = serviceAreaResult.rows[0];
 
-    // Get tasker categories
     const categoriesResult = await pool.query(
       'SELECT category FROM tasker_categories WHERE tasker_id = $1',
       [userId]
     );
     const categories = categoriesResult.rows.map(r => r.category);
 
-    // Query tasks in service area
-    // Using simple distance calculation (Haversine would be better with PostGIS)
     let query = `
-      SELECT t.*, 
+      SELECT t.*, u.full_name AS client_name,
         (6371 * acos(
           cos(radians($1)) * cos(radians(t.lat)) *
           cos(radians(t.lng) - radians($2)) +
           sin(radians($1)) * sin(radians(t.lat))
         )) AS distance_km
       FROM tasks t
+      LEFT JOIN users u ON t.client_id = u.id
       WHERE t.state IN ('posted', 'matching')
-        AND t.city IN (SELECT DISTINCT city FROM tasks WHERE client_id != $3)
+        AND (6371 * acos(
+          cos(radians($1)) * cos(radians(t.lat)) *
+          cos(radians(t.lng) - radians($2)) +
+          sin(radians($1)) * sin(radians(t.lat))
+        )) <= $3
     `;
 
-    const params = [center_lat, center_lng, userId];
+    const params = [center_lat, center_lng, max_distance_km ? Math.min(Number(max_distance_km), radius_km) : radius_km];
     let paramIndex = 4;
 
     if (categories.length > 0) {
       query += ` AND t.category = ANY($${paramIndex})`;
       params.push(categories);
+      paramIndex++;
+    }
+
+    if (category) {
+      query += ` AND t.category = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+
+    if (min_price != null && min_price !== '') {
+      query += ` AND t.est_min_amount >= $${paramIndex}`;
+      params.push(Number(min_price));
+      paramIndex++;
+    }
+
+    if (max_price != null && max_price !== '') {
+      query += ` AND t.est_max_amount <= $${paramIndex}`;
+      params.push(Number(max_price));
+      paramIndex++;
+    }
+
+    if (starts_after) {
+      query += ` AND t.starts_at >= $${paramIndex}::timestamptz`;
+      params.push(starts_after);
+      paramIndex++;
+    }
+
+    if (starts_before) {
+      query += ` AND t.starts_at <= $${paramIndex}::timestamptz`;
+      params.push(starts_before);
       paramIndex++;
     }
 
@@ -396,17 +442,24 @@ router.get('/me/tasks/available', authenticate, requireRole('tasker'), paginatio
       paramIndex++;
     }
 
-    query += ` ORDER BY t.created_at DESC LIMIT $${paramIndex}`;
+    const orderBy = sort === 'distance_asc'
+      ? 'distance_km ASC, t.created_at DESC'
+      : sort === 'price_asc'
+        ? 't.est_min_amount ASC, t.created_at DESC'
+        : sort === 'price_desc'
+          ? 't.est_max_amount DESC, t.created_at DESC'
+          : 't.created_at DESC';
+    query += ` ORDER BY ${orderBy} LIMIT $${paramIndex}`;
     params.push(limit + 1);
 
     const result = await pool.query(query, params);
     const tasks = result.rows.slice(0, limit);
     const nextCursor = result.rows.length > limit ? tasks[tasks.length - 1].id : null;
 
-    // Format tasks
     const formattedTasks = tasks.map(task => ({
       id: task.id,
       client_id: task.client_id,
+      client_name: task.client_name || null,
       category: task.category,
       subcategory: task.subcategory,
       description: task.description,

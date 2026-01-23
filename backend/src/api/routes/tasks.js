@@ -27,7 +27,7 @@ router.post('/', authenticate, requireRole('client'), idempotency, async (req, r
           lng: z.number()
         }),
         city: z.string(),
-        district: z.string().optional()
+        district: z.string().nullish()
       }),
       schedule: z.object({
         starts_at: z.string().datetime(),
@@ -279,6 +279,7 @@ router.get('/:task_id', authenticate, optionalAuth, async (req, res, next) => {
       try {
         const bookingResult = await pool.query(
           `SELECT 
+            b.id as booking_id,
             b.tasker_id,
             b.status as booking_status,
             b.agreed_rate_amount,
@@ -318,6 +319,8 @@ router.get('/:task_id', authenticate, optionalAuth, async (req, res, next) => {
             full_name: booking.full_name,
             phone: booking.phone,
             bio: booking.bio,
+            booking_id: booking.booking_id,
+            booking_status: booking.booking_status,
             rating: {
               average: parseFloat(booking.rating_avg) || 0,
               count: booking.rating_count || 0

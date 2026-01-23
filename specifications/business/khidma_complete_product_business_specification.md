@@ -64,6 +64,15 @@ To become the default operating system for local, on-demand human labor.
 - **US-C-002**: As a client, I want to verify my phone number via SMS, so that my account is secure and I can receive task updates.
 - **US-C-003**: As a client, I want to complete my profile with my name and address, so that taskers can find and complete tasks at my location.
 
+#### Profile & Account Management
+- **US-C-038**: As a client, I want to edit my profile information (name, address), so that I can keep my account details up to date.
+- **US-C-039**: As a client, I want to manage multiple saved addresses, so that I can post tasks for different locations (home, office, rental property).
+- **US-C-040**: As a client, I want to change my phone number, so that I can update my contact information when needed.
+- **US-C-041**: As a client, I want to set my language preference (Arabic/English), so that I can use the platform in my preferred language.
+- **US-C-042**: As a client, I want to manage my notification preferences, so that I can control what updates I receive and how.
+- **US-C-043**: As a client, I want to deactivate or delete my account, so that I can manage my account lifecycle.
+- **US-C-044**: As a client, I want to accept terms of service and privacy policy, so that I understand the platform rules and my rights.
+
 #### Task Creation & Posting
 - **US-C-004**: As a client, I want to create a task using a step-by-step wizard, so that I can easily describe what I need done.
 - **US-C-005**: As a client, I want to select a task category (e.g., cleaning, mounting, moving), so that the system can match me with qualified taskers.
@@ -73,6 +82,15 @@ To become the default operating system for local, on-demand human labor.
 - **US-C-009**: As a client, I want to specify my preferred time window, so that taskers can accept tasks that fit their schedule.
 - **US-C-010**: As a client, I want to post a task and see it go live immediately, so that I can get help quickly.
 
+#### Task Management Enhancements
+- **US-C-045**: As a client, I want to edit my task details before it's accepted, so that I can correct mistakes or add information.
+- **US-C-046**: As a client, I want to search and filter my task history, so that I can find specific past tasks quickly.
+- **US-C-047**: As a client, I want to save task templates for recurring tasks, so that I can quickly recreate similar tasks without re-entering all details.
+- **US-C-048**: As a client, I want to schedule tasks in advance, so that I can plan ahead for future service needs.
+- **US-C-049**: As a client, I want to set up recurring tasks (e.g., weekly cleaning), so that I don't have to manually post them each time.
+- **US-C-050**: As a client, I want to duplicate a previous task, so that I can quickly recreate similar tasks.
+- **US-C-052**: As a client, I want to select a saved address from a dropdown when creating a task, so that I can quickly use addresses I've saved before without re-entering them.
+
 #### Tasker Selection & Matching
 - **US-C-011**: As a client, I want to see a list of available taskers ranked by relevance, so that I can choose the best match for my task.
 - **US-C-012**: As a client, I want to view tasker profiles with ratings, reviews, and skills, so that I can make an informed decision.
@@ -80,6 +98,11 @@ To become the default operating system for local, on-demand human labor.
 - **US-C-014**: As a client, I want to see tasker pricing for my task category, so that I can compare options.
 - **US-C-015**: As a client, I want to manually select a tasker from recommendations, so that I have control over who completes my task.
 - **US-C-016**: As a client, I want the system to automatically match me with the best tasker if I don't choose, so that my task gets filled quickly.
+
+#### Tasker Relationship Management
+- **US-C-051**: As a client, I want to mark taskers as favorites, so that I can easily request them for future tasks.
+- **US-C-053**: As a client, I want to see my favorite taskers prioritized in recommendations, so that I can work with trusted providers.
+- **US-C-054**: As a client, I want to request a specific tasker I've worked with before, so that I can maintain consistent service quality.
 
 #### Communication
 - **US-C-017**: As a client, I want to chat with my assigned tasker via in-app messaging, so that I can provide additional details or ask questions.
