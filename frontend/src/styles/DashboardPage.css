@@ -133,6 +133,131 @@
   margin-top: auto;
 }
 
+/* Search and Filter Section */
+.search-filter-section {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.search-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+.filter-toggle-btn {
+  padding: 0.75rem 1.5rem;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.filter-toggle-btn:hover {
+  background: #e0e0e0;
+}
+
+.filters-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-group label {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.875rem;
+}
+
+.filter-group select {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.clear-filters-btn {
+  padding: 0.5rem 1rem;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  align-self: end;
+  transition: background 0.2s;
+}
+
+.clear-filters-btn:hover {
+  background: #d32f2f;
+}
+
+.results-count {
+  margin-bottom: 1rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.task-card {
+  position: relative;
+}
+
+.task-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.task-card-actions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.duplicate-btn {
+  padding: 0.5rem 1rem;
+  background: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.duplicate-btn:hover {
+  background: #1976D2;
+}
+
 /* RTL adjustments */
 [dir="rtl"] .task-header {
   flex-direction: row-reverse;
@@ -140,4 +265,12 @@
 
 [dir="rtl"] .task-footer {
   flex-direction: row-reverse;
+}
+
+[dir="rtl"] .search-bar {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .filters-panel {
+  direction: rtl;
 }

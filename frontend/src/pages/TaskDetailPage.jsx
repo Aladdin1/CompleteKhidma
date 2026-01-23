@@ -16,6 +16,12 @@ function TaskDetailPage() {
   const [error, setError] = useState('');
   const [showCandidates, setShowCandidates] = useState(false);
   const [canAccept, setCanAccept] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    description: '',
+    starts_at: '',
+    flexibility_minutes: 0,
+  });
 
   useEffect(() => {
     loadTask();
@@ -26,6 +32,15 @@ function TaskDetailPage() {
       setLoading(true);
       const taskData = await taskAPI.get(taskId);
       setTask(taskData);
+
+      // Initialize edit form data
+      setEditFormData({
+        description: taskData.description || '',
+        starts_at: taskData.schedule?.starts_at 
+          ? new Date(taskData.schedule.starts_at).toISOString().slice(0, 16)
+          : '',
+        flexibility_minutes: taskData.schedule?.flexibility_minutes || 0,
+      });
 
       // For taskers, allow accepting tasks in 'posted' or 'matching' state
       // (backend will validate - matching service not yet implemented)
@@ -103,6 +118,47 @@ function TaskDetailPage() {
     }
   };
 
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    // Reset form data to original task data
+    if (task) {
+      setEditFormData({
+        description: task.description || '',
+        starts_at: task.schedule?.starts_at 
+          ? new Date(task.schedule.starts_at).toISOString().slice(0, 16)
+          : '',
+        flexibility_minutes: task.schedule?.flexibility_minutes || 0,
+      });
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      const updates = {
+        description: editFormData.description,
+      };
+
+      if (editFormData.starts_at) {
+        updates.schedule = {
+          starts_at: new Date(editFormData.starts_at).toISOString(),
+          flexibility_minutes: editFormData.flexibility_minutes,
+        };
+      }
+
+      await taskAPI.update(taskId, updates);
+      setIsEditing(false);
+      setError('');
+      await loadTask(); // Reload task to show updated data
+      alert(t('task.editSuccess') || 'تم تحديث المهمة بنجاح');
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to update task');
+    }
+  };
+
   // Check if current user is the task owner (client)
   const isTaskOwner = task && user && task.client_id === user.id;
 
@@ -148,8 +204,34 @@ function TaskDetailPage() {
         </div>
 
         <div className="task-section">
-          <h3>الوصف</h3>
-          <p>{task.description}</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <h3>{t('task.description')}</h3>
+            {isTaskOwner && ['draft', 'posted'].includes(task.state) && !isEditing && (
+              <button onClick={handleEdit} className="edit-btn">
+                {t('task.edit')}
+              </button>
+            )}
+          </div>
+          {isEditing ? (
+            <div className="edit-form">
+              <textarea
+                value={editFormData.description}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                className="edit-textarea"
+                rows="4"
+              />
+              <div className="edit-actions">
+                <button onClick={handleSaveEdit} className="save-btn">
+                  {t('task.save')}
+                </button>
+                <button onClick={handleCancelEdit} className="cancel-btn">
+                  {t('task.cancel')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p>{task.description}</p>
+          )}
         </div>
 
         <div className="task-section">
@@ -159,13 +241,40 @@ function TaskDetailPage() {
         </div>
 
         <div className="task-section">
-          <h3>الموعد</h3>
-          <p>
-            {new Date(task.schedule?.starts_at || task.created_at).toLocaleString('ar-EG', {
-              dateStyle: 'full',
-              timeStyle: 'short',
-            })}
-          </p>
+          <h3>{t('task.schedule')}</h3>
+          {isEditing ? (
+            <div className="edit-form">
+              <label>
+                {t('task.startTime')}
+                <input
+                  type="datetime-local"
+                  value={editFormData.starts_at}
+                  onChange={(e) => setEditFormData({ ...editFormData, starts_at: e.target.value })}
+                  className="edit-input"
+                />
+              </label>
+              <label>
+                {t('task.flexibilityMinutes')}
+                <input
+                  type="number"
+                  value={editFormData.flexibility_minutes}
+                  onChange={(e) => setEditFormData({ ...editFormData, flexibility_minutes: parseInt(e.target.value) || 0 })}
+                  className="edit-input"
+                  min="0"
+                />
+              </label>
+            </div>
+          ) : (
+            <p>
+              {new Date(task.schedule?.starts_at || task.created_at).toLocaleString('ar-EG', {
+                dateStyle: 'full',
+                timeStyle: 'short',
+              })}
+              {task.schedule?.flexibility_minutes > 0 && (
+                <span> ({t('task.flexibility')}: {task.schedule.flexibility_minutes} {t('task.minutes')})</span>
+              )}
+            </p>
+          )}
         </div>
 
         {task.pricing?.estimate && (
