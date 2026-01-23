@@ -4,15 +4,16 @@ import { taskerAPI } from '../services/api';
 import '../styles/TaskerProfilePage.css';
 
 const CATEGORIES = [
-  'cleaning',
-  'mounting',
-  'moving',
-  'assembly',
-  'delivery',
-  'handyman',
-  'painting',
-  'plumbing',
-  'electrical',
+  { key: 'cleaning', name: 'Cleaning', symbol: '🧹' },
+  { key: 'mounting', name: 'Mounting', symbol: '📌' },
+  { key: 'moving', name: 'Moving', symbol: '📦' },
+  { key: 'assembly', name: 'Assembly', symbol: '🔧' },
+  { key: 'delivery', name: 'Delivery', symbol: '🚚' },
+  { key: 'handyman', name: 'Handyman', symbol: '👷' },
+  { key: 'painting', name: 'Painting', symbol: '🎨' },
+  { key: 'plumbing', name: 'Plumbing', symbol: '🔧' },
+  { key: 'electrical', name: 'Electrical', symbol: '⚡' },
+  { key: 'developing', name: 'Developing', symbol: '💻' },
 ];
 
 function TaskerProfilePage() {
@@ -153,13 +154,13 @@ function TaskerProfilePage() {
           <label>الفئات</label>
           <div className="categories-list">
             {CATEGORIES.map((cat) => (
-              <label key={cat} className="checkbox-label">
+              <label key={cat.key} className="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={formData.categories.includes(cat)}
-                  onChange={() => handleCategoryToggle(cat)}
+                  checked={formData.categories.includes(cat.key)}
+                  onChange={() => handleCategoryToggle(cat.key)}
                 />
-                <span>{cat}</span>
+                <span>{cat.symbol} {cat.name}</span>
               </label>
             ))}
           </div>

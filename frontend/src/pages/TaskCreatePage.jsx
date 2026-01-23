@@ -5,15 +5,16 @@ import { taskAPI } from '../services/api';
 import '../styles/TaskCreatePage.css';
 
 const CATEGORIES = [
-  'cleaning',
-  'mounting',
-  'moving',
-  'assembly',
-  'delivery',
-  'handyman',
-  'painting',
-  'plumbing',
-  'electrical',
+  { key: 'cleaning', name: 'Cleaning', symbol: '🧹' },
+  { key: 'mounting', name: 'Mounting', symbol: '📌' },
+  { key: 'moving', name: 'Moving', symbol: '📦' },
+  { key: 'assembly', name: 'Assembly', symbol: '🔧' },
+  { key: 'delivery', name: 'Delivery', symbol: '🚚' },
+  { key: 'handyman', name: 'Handyman', symbol: '👷' },
+  { key: 'painting', name: 'Painting', symbol: '🎨' },
+  { key: 'plumbing', name: 'Plumbing', symbol: '🔧' },
+  { key: 'electrical', name: 'Electrical', symbol: '⚡' },
+  { key: 'developing', name: 'Developing', symbol: '💻' },
 ];
 
 function TaskCreatePage() {
@@ -94,8 +95,8 @@ function TaskCreatePage() {
           >
             <option value="">اختر الفئة</option>
             {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
+              <option key={cat.key} value={cat.key}>
+                {cat.symbol} {cat.name}
               </option>
             ))}
           </select>
