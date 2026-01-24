@@ -181,6 +181,8 @@ i18n
             confirmed: 'مؤكد',
             canceled: 'ملغي',
             disputed: 'نزاع',
+            acceptOffer: 'قبول العرض',
+            rejectOffer: 'رفض العرض',
             loading: 'جاري التحميل...'
           }
         }
@@ -359,6 +361,8 @@ i18n
             confirmed: 'Confirmed',
             canceled: 'Canceled',
             disputed: 'Disputed',
+            acceptOffer: 'Accept Offer',
+            rejectOffer: 'Reject Offer',
             loading: 'Loading...'
           }
         }

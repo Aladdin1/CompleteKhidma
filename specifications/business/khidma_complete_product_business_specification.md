@@ -98,6 +98,7 @@ To become the default operating system for local, on-demand human labor.
 - **US-C-014**: As a client, I want to see tasker pricing for my task category, so that I can compare options.
 - **US-C-015**: As a client, I want to manually select a tasker from recommendations, so that I have control over who completes my task.
 - **US-C-016**: As a client, I want the system to automatically match me with the best tasker if I don't choose, so that my task gets filled quickly.
+- **US-C-085**: As a client, I want to select a tasker for my task and wait for their acceptance, so that I know the tasker has confirmed they can complete the work.
 
 #### Tasker Relationship Management
 - **US-C-051**: As a client, I want to mark taskers as favorites, so that I can easily request them for future tasks.
@@ -159,6 +160,8 @@ To become the default operating system for local, on-demand human labor.
 - **US-T-013**: As a tasker, I want to receive push notifications for new tasks matching my skills, so that I don't miss opportunities.
 - **US-T-014**: As a tasker, I want to see tasks ranked by relevance to me (distance, skills, earnings potential), so that I can prioritize the best opportunities.
 - **US-T-015**: As a tasker, I want to accept or decline task offers, so that I have control over which jobs I take.
+- **US-T-101**: As a tasker, I want to receive task offers when a client selects me, so that I can review and decide whether to accept or reject based on my availability and preferences.
+- **US-T-102**: As a tasker, I want to see all my pending offers in one place, so that I can efficiently manage and respond to multiple task opportunities.
 
 #### Pricing & Earnings
 - **US-T-016**: As a tasker, I want to set my hourly rate per task category, so that I can price my services competitively.

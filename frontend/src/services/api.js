@@ -295,6 +295,18 @@ export const bookingAPI = {
     return response.data;
   },
 
+  // Accept booking offer (for taskers)
+  accept: async (bookingId) => {
+    const response = await api.post(`/bookings/${bookingId}/accept`);
+    return response.data;
+  },
+
+  // Reject booking offer (for taskers)
+  reject: async (bookingId, reason) => {
+    const response = await api.post(`/bookings/${bookingId}/reject`, { reason });
+    return response.data;
+  },
+
   updateStatus: async (bookingId, status, meta = {}) => {
     const response = await api.post(`/bookings/${bookingId}/status`, { status, meta });
     return response.data;

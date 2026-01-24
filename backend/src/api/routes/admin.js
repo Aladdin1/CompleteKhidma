@@ -47,15 +47,14 @@ router.post('/tasks/:task_id/assign', async (req, res, next) => {
         [bookingId, task_id, tasker_id]
       );
 
-      await client.query(
-        'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
-        ['accepted', task_id]
-      );
+      // Keep task in matching state until tasker accepts
+      // Admin assignment creates an 'offered' booking, tasker must still accept
+      // DO NOT update to 'accepted' here
 
       await client.query(
-        `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id, reason)
-         VALUES (uuid_generate_v4(), $1, $2, 'accepted', $3, $4)`,
-        [task_id, task.state, req.user.id, reason || 'Manual assignment by ops']
+        `INSERT INTO booking_events (id, booking_id, from_status, to_status, actor_user_id, meta)
+         VALUES (uuid_generate_v4(), $1, NULL, 'offered', $2, $3)`,
+        [bookingId, req.user.id, JSON.stringify({ reason: reason || 'Manual assignment by ops', admin_assigned: true })]
       );
 
       await client.query('COMMIT');
@@ -64,7 +63,8 @@ router.post('/tasks/:task_id/assign', async (req, res, next) => {
         booking_id: bookingId,
         task_id: task_id,
         tasker_id: tasker_id,
-        message: 'Task assigned successfully'
+        status: 'offered',
+        message: 'Task assigned successfully. Tasker must accept the offer before task is confirmed.'
       });
     } catch (error) {
       await client.query('ROLLBACK');

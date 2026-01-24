@@ -93,6 +93,35 @@ function MyBookingsPage() {
     }
   };
 
+  const handleAcceptOffer = async (bookingId) => {
+    if (!window.confirm('هل أنت متأكد من قبول هذا العرض؟')) return;
+    
+    try {
+      await bookingAPI.accept(bookingId);
+      setError('');
+      alert('تم قبول العرض بنجاح!');
+      refreshList();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to accept offer');
+    }
+  };
+
+  const handleRejectOffer = async (bookingId) => {
+    const reason = window.prompt('سبب الرفض (اختياري):');
+    if (reason === null) return; // User cancelled
+    
+    if (!window.confirm('هل أنت متأكد من رفض هذا العرض؟')) return;
+    
+    try {
+      await bookingAPI.reject(bookingId, reason || undefined);
+      setError('');
+      alert('تم رفض العرض بنجاح');
+      refreshList();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to reject offer');
+    }
+  };
+
   const handleStatusUpdate = async (bookingId, status) => {
     try {
       await bookingAPI.updateStatus(bookingId, status);
@@ -289,12 +318,20 @@ function MyBookingsPage() {
                     {t('tasker.viewDetails')}
                   </button>
                   {booking.status === 'offered' && (
-                    <button
-                      className="secondary-btn"
-                      onClick={() => handleStatusUpdate(booking.id, 'accepted')}
-                    >
-                      {t('tasker.confirmAccept')}
-                    </button>
+                    <>
+                      <button
+                        className="primary-btn"
+                        onClick={() => handleAcceptOffer(booking.id)}
+                      >
+                        {t('tasker.acceptOffer') || 'قبول العرض'}
+                      </button>
+                      <button
+                        className="danger-btn"
+                        onClick={() => handleRejectOffer(booking.id)}
+                      >
+                        {t('tasker.rejectOffer') || 'رفض العرض'}
+                      </button>
+                    </>
                   )}
                   {booking.status === 'accepted' && (
                     <button

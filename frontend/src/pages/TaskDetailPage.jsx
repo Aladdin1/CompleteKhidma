@@ -114,8 +114,8 @@ function TaskDetailPage() {
     try {
       await taskAPI.selectTasker(taskId, taskerId);
       setError('');
-      alert('تم اختيار العامل بنجاح!');
-      loadTask(); // Reload to show assigned tasker
+      alert('تم إرسال العرض للعامل. في انتظار قبوله...');
+      loadTask(); // Reload to show assigned tasker with pending status
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to select tasker');
     }
@@ -299,7 +299,7 @@ function TaskDetailPage() {
           </div>
         )}
 
-        {/* Show assigned tasker if task is accepted */}
+        {/* Show assigned tasker if task has an assigned tasker (offered or accepted) */}
         {isTaskOwner && task.assigned_tasker && (
           <div className="task-section">
             <h3>العامل المكلف</h3>
@@ -310,12 +310,40 @@ function TaskDetailPage() {
                   {task.assigned_tasker.verification?.is_verified && (
                     <span className="verified-badge">✓ موثق</span>
                   )}
+                  {/* Show booking status badge */}
+                  {task.assigned_tasker.booking_status === 'offered' && (
+                    <span className="status-badge status-offered" style={{ marginLeft: '0.5rem' }}>
+                      ⏳ في انتظار القبول
+                    </span>
+                  )}
+                  {task.assigned_tasker.booking_status === 'accepted' && (
+                    <span className="status-badge status-accepted" style={{ marginLeft: '0.5rem' }}>
+                      ✓ تم القبول
+                    </span>
+                  )}
                 </div>
                 <div className="tasker-rating">
                   ⭐ {task.assigned_tasker.rating?.average?.toFixed(1) || '0.0'} (
                   {task.assigned_tasker.rating?.count || 0} تقييم)
                 </div>
               </div>
+              {task.assigned_tasker.booking_status === 'offered' && (
+                <div className="waiting-notice" style={{ 
+                  padding: '1rem', 
+                  backgroundColor: '#fff3cd', 
+                  border: '1px solid #ffc107', 
+                  borderRadius: '4px',
+                  marginBottom: '1rem',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ margin: 0, fontWeight: 'bold', color: '#856404' }}>
+                    ⏳ في انتظار رد العامل على العرض
+                  </p>
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#856404' }}>
+                    سيتم إشعارك عند قبول أو رفض العرض
+                  </p>
+                </div>
+              )}
               {task.assigned_tasker.bio && (
                 <p className="tasker-bio">{task.assigned_tasker.bio}</p>
               )}
@@ -333,7 +361,7 @@ function TaskDetailPage() {
         )}
 
         {/* Show candidates section to task owners (clients) when task is posted or matching */}
-        {isTaskOwner && (task.state === 'posted' || task.state === 'matching') && (
+        {isTaskOwner && (task.state === 'posted' || task.state === 'matching') && !task.assigned_tasker && (
           <div className="task-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3>العمال المتاحون</h3>

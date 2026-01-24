@@ -13,7 +13,14 @@ async function migrate() {
     await client.query('BEGIN');
     
     // Read and execute all migration files in order
-    const migrations = ['001_initial_schema.sql', '002_additional_tables.sql', '003_user_addresses.sql', '004_bookings_arrived_at.sql', '005_fix_reviews_unique_constraint.sql'];
+    const migrations = [
+      '001_initial_schema.sql', 
+      '002_additional_tables.sql', 
+      '003_user_addresses.sql', 
+      '004_bookings_arrived_at.sql', 
+      '005_fix_reviews_unique_constraint.sql',
+      '006_fix_bookings_unique_constraint.sql'
+    ];
     
     for (const migrationFile of migrations) {
       const migrationPath = path.join(__dirname, 'migrations', migrationFile);

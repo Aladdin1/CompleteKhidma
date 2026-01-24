@@ -48,6 +48,7 @@ router.get('/', authenticate, requireRole('tasker'), pagination, async (req, res
       params.push(status);
       paramIndex++;
     } else {
+      // By default, show all non-canceled bookings (including 'offered' for pending offers)
       query += ` AND b.status NOT IN ('canceled', 'disputed')`;
     }
 
@@ -172,9 +173,9 @@ router.post('/', authenticate, requireRole('client'), idempotency, async (req, r
       });
     }
 
-    // Check if booking already exists
+    // Check if active booking already exists (exclude canceled and disputed bookings)
     const existingBooking = await pool.query(
-      'SELECT * FROM bookings WHERE task_id = $1',
+      `SELECT * FROM bookings WHERE task_id = $1 AND status NOT IN ('canceled', 'disputed')`,
       [task_id]
     );
 
@@ -182,7 +183,7 @@ router.post('/', authenticate, requireRole('client'), idempotency, async (req, r
       return res.status(409).json({
         error: {
           code: 'BOOKING_EXISTS',
-          message: 'Booking already exists for this task'
+          message: 'An active booking already exists for this task'
         }
       });
     }
@@ -207,19 +208,11 @@ router.post('/', authenticate, requireRole('client'), idempotency, async (req, r
         ]
       );
 
-      // Update task state
-      await client.query(
-        'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
-        ['accepted', task_id]
-      );
+      // Keep task in matching state until tasker accepts
+      // DO NOT update to 'accepted' here - tasker must accept first
+      // Task state remains 'matching' or 'posted' until tasker accepts
 
-      // Log events
-      await client.query(
-        `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
-         VALUES (uuid_generate_v4(), $1, $2, 'accepted', $3)`,
-        [task_id, task.state, userId]
-      );
-
+      // Log booking event
       await client.query(
         `INSERT INTO booking_events (id, booking_id, from_status, to_status, actor_user_id)
          VALUES (uuid_generate_v4(), $1, NULL, 'offered', $2)`,
@@ -296,6 +289,190 @@ router.get('/:booking_id', authenticate, async (req, res, next) => {
       completed_at: booking.completed_at,
       created_at: booking.created_at
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/bookings/:booking_id/accept
+ * Tasker accepts booking offer (US-T-015, US-T-101)
+ * Updates booking status from 'offered' to 'accepted' and task state to 'accepted'
+ */
+router.post('/:booking_id/accept', authenticate, requireRole('tasker'), async (req, res, next) => {
+  try {
+    const { booking_id } = req.params;
+    const userId = req.user.id;
+
+    // Get booking with task info
+    const bookingResult = await pool.query(
+      `SELECT b.*, t.id as task_id, t.state as task_state, t.client_id
+       FROM bookings b
+       JOIN tasks t ON b.task_id = t.id
+       WHERE b.id = $1 AND b.tasker_id = $2`,
+      [booking_id, userId]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Booking not found or you do not have permission to accept it'
+        }
+      });
+    }
+
+    const booking = bookingResult.rows[0];
+
+    if (booking.status !== 'offered') {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_STATE',
+          message: `Cannot accept booking with status '${booking.status}'. Only 'offered' bookings can be accepted.`
+        }
+      });
+    }
+
+    const dbClient = await pool.connect();
+    try {
+      await dbClient.query('BEGIN');
+
+      // Update booking status: offered -> accepted
+      await dbClient.query(
+        'UPDATE bookings SET status = $1, updated_at = now() WHERE id = $2',
+        ['accepted', booking_id]
+      );
+
+      // Update task state: matching/posted -> accepted
+      await dbClient.query(
+        'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
+        ['accepted', booking.task_id]
+      );
+
+      // Log task state event
+      await dbClient.query(
+        `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
+         VALUES (uuid_generate_v4(), $1, $2, 'accepted', $3)`,
+        [booking.task_id, booking.task_state, userId]
+      );
+
+      // Log booking event
+      await dbClient.query(
+        `INSERT INTO booking_events (id, booking_id, from_status, to_status, actor_user_id)
+         VALUES (uuid_generate_v4(), $1, $2, 'accepted', $3)`,
+        [booking_id, booking.status, userId]
+      );
+
+      await dbClient.query('COMMIT');
+
+      const updatedResult = await dbClient.query(
+        'SELECT * FROM bookings WHERE id = $1',
+        [booking_id]
+      );
+
+      res.json({
+        id: updatedResult.rows[0].id,
+        task_id: updatedResult.rows[0].task_id,
+        tasker_id: updatedResult.rows[0].tasker_id,
+        status: updatedResult.rows[0].status,
+        message: 'Booking accepted successfully. Task is now confirmed.',
+        updated_at: updatedResult.rows[0].updated_at
+      });
+    } catch (error) {
+      await dbClient.query('ROLLBACK');
+      throw error;
+    } finally {
+      dbClient.release();
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/bookings/:booking_id/reject
+ * Tasker rejects booking offer (US-T-015, US-T-101)
+ * Updates booking status to 'canceled' and keeps task in 'matching' state
+ */
+router.post('/:booking_id/reject', authenticate, requireRole('tasker'), async (req, res, next) => {
+  try {
+    const { booking_id } = req.params;
+    const userId = req.user.id;
+    const { reason } = req.body;
+
+    // Get booking with task info
+    const bookingResult = await pool.query(
+      `SELECT b.*, t.id as task_id, t.state as task_state, t.client_id
+       FROM bookings b
+       JOIN tasks t ON b.task_id = t.id
+       WHERE b.id = $1 AND b.tasker_id = $2`,
+      [booking_id, userId]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Booking not found or you do not have permission to reject it'
+        }
+      });
+    }
+
+    const booking = bookingResult.rows[0];
+
+    if (booking.status !== 'offered') {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_STATE',
+          message: `Cannot reject booking with status '${booking.status}'. Only 'offered' bookings can be rejected.`
+        }
+      });
+    }
+
+    const dbClient = await pool.connect();
+    try {
+      await dbClient.query('BEGIN');
+
+      // Update booking status: offered -> canceled
+      await dbClient.query(
+        'UPDATE bookings SET status = $1, updated_at = now() WHERE id = $2',
+        ['canceled', booking_id]
+      );
+
+      // Keep task in matching state (available for other taskers)
+      // Task state should remain 'matching' or 'posted', not change to canceled
+      // Only update if task is not already in a terminal state
+      if (!['completed', 'settled', 'reviewed', 'canceled_by_client', 'canceled_by_tasker', 'disputed'].includes(booking.task_state)) {
+        // Ensure task is back in matching state if it was in a different state
+        if (booking.task_state !== 'matching' && booking.task_state !== 'posted') {
+          await dbClient.query(
+            'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
+            ['matching', booking.task_id]
+          );
+        }
+      }
+
+      // Log booking event
+      await dbClient.query(
+        `INSERT INTO booking_events (id, booking_id, from_status, to_status, actor_user_id, meta)
+         VALUES (uuid_generate_v4(), $1, $2, 'canceled', $3, $4)`,
+        [booking_id, booking.status, userId, JSON.stringify({ reason: reason || 'Tasker rejected offer' })]
+      );
+
+      await dbClient.query('COMMIT');
+
+      res.json({
+        id: booking_id,
+        status: 'canceled',
+        message: 'Booking rejected. Task remains available for other taskers.',
+        task_state: booking.task_state
+      });
+    } catch (error) {
+      await dbClient.query('ROLLBACK');
+      throw error;
+    } finally {
+      dbClient.release();
+    }
   } catch (error) {
     next(error);
   }
@@ -439,7 +616,13 @@ router.post('/:booking_id/status', authenticate, async (req, res, next) => {
       );
 
       // Update task state if needed
-      if (status === 'in_progress') {
+      if (status === 'accepted' && booking.status === 'offered') {
+        // When booking transitions from 'offered' to 'accepted', update task state
+        await client.query(
+          'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
+          ['accepted', booking.task_id]
+        );
+      } else if (status === 'in_progress') {
         await client.query(
           'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
           ['in_progress', booking.task_id]
@@ -454,6 +637,19 @@ router.post('/:booking_id/status', authenticate, async (req, res, next) => {
           'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
           ['disputed', booking.task_id]
         );
+      } else if (status === 'canceled' && booking.status === 'offered') {
+        // When canceling an 'offered' booking, keep task in matching state
+        // Task should remain available for other taskers
+        const taskResult = await client.query('SELECT state FROM tasks WHERE id = $1', [booking.task_id]);
+        const currentTaskState = taskResult.rows[0]?.state;
+        if (currentTaskState && !['completed', 'settled', 'reviewed', 'canceled_by_client', 'canceled_by_tasker', 'disputed'].includes(currentTaskState)) {
+          if (currentTaskState !== 'matching' && currentTaskState !== 'posted') {
+            await client.query(
+              'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
+              ['matching', booking.task_id]
+            );
+          }
+        }
       }
 
       // Log event
