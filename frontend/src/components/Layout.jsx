@@ -39,6 +39,7 @@ function Layout() {
               <>
                 <Link to="/">{t('task.myTasks')}</Link>
                 <Link to="/tasks/create">{t('task.create')}</Link>
+                <Link to="/payments/history">{t('payment.paymentHistory')}</Link>
                 <Link to="/profile">{t('profile.title')}</Link>
                 <Link to="/become-tasker">أصبح مهمات</Link>
               </>

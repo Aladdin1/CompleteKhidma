@@ -124,6 +124,13 @@ To become the default operating system for local, on-demand human labor.
 - **US-C-028**: As a client, I want to see a breakdown of costs (tasker rate, platform fee), so that I understand what I'm paying for.
 - **US-C-029**: As a client, I want to add a tip after task completion, so that I can reward excellent service.
 - **US-C-030**: As a client, I want to dispute charges if the task wasn't completed as expected, so that I'm protected from poor service.
+- **US-C-055**: As a client, I want to manage multiple payment methods (add, edit, remove), so that I have flexibility in how I pay.
+- **US-C-056**: As a client, I want to set a default payment method, so that payments are processed quickly without selecting each time.
+- **US-C-057**: As a client, I want to view my payment history and transaction details, so that I can track my spending.
+- **US-C-058**: As a client, I want to download receipts/invoices for completed tasks, so that I can keep records for accounting or tax purposes.
+- **US-C-059**: As a client, I want to see the status of my dispute resolution, so that I know when issues are being addressed.
+- **US-C-060**: As a client, I want to track my refund status, so that I know when refunded amounts will be returned.
+- **US-C-061**: As a client, I want to see spending summaries (monthly/yearly), so that I can track my service expenses.
 
 #### Reviews & Feedback
 - **US-C-031**: As a client, I want to rate my tasker after completion (1-5 stars), so that I can share my experience and help other clients.

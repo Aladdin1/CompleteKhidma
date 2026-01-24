@@ -339,4 +339,68 @@ export const reviewAPI = {
   },
 };
 
+// Payment API
+export const paymentAPI = {
+  // Payment Methods Management
+  getPaymentMethods: async () => {
+    const response = await api.get('/users/me/payment-methods');
+    return response.data;
+  },
+
+  addPaymentMethod: async (paymentMethodData) => {
+    const response = await api.post('/users/me/payment-methods', paymentMethodData);
+    return response.data;
+  },
+
+  updatePaymentMethod: async (methodId, updates) => {
+    const response = await api.patch(`/users/me/payment-methods/${methodId}`, updates);
+    return response.data;
+  },
+
+  deletePaymentMethod: async (methodId) => {
+    const response = await api.delete(`/users/me/payment-methods/${methodId}`);
+    return response.data;
+  },
+
+  setDefaultPaymentMethod: async (methodId) => {
+    const response = await api.patch(`/users/me/payment-methods/${methodId}/set-default`);
+    return response.data;
+  },
+
+  // Payment History
+  getPaymentHistory: async (params = {}) => {
+    const response = await api.get('/users/me/payments', { params });
+    return response.data;
+  },
+
+  getPaymentDetails: async (paymentId) => {
+    const response = await api.get(`/users/me/payments/${paymentId}`);
+    return response.data;
+  },
+
+  downloadReceipt: async (paymentId) => {
+    const response = await api.get(`/users/me/payments/${paymentId}/receipt`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // Spending Analytics
+  getSpendingAnalytics: async (params = {}) => {
+    const response = await api.get('/users/me/payments/analytics', { params });
+    return response.data;
+  },
+
+  // Disputes
+  getDisputes: async (params = {}) => {
+    const response = await api.get('/users/me/disputes', { params });
+    return response.data;
+  },
+
+  getDisputeDetails: async (disputeId) => {
+    const response = await api.get(`/users/me/disputes/${disputeId}`);
+    return response.data;
+  },
+};
+
 export default api;

@@ -93,22 +93,23 @@ router.get('/me/profile', authenticate, requireRole('tasker'), async (req, res, 
       [userId]
     );
 
-    const bookingStats = bookingStatsResult.rows[0];
+    const bookingStats = bookingStatsResult.rows[0] || {};
     const totalOffers = parseInt(bookingStats.total_offers) || 0;
+    const offeredCount = parseInt(bookingStats.offered_count) || 0;
     const acceptedCount = parseInt(bookingStats.accepted_count) || 0;
     const completedCount = parseInt(bookingStats.completed_count) || 0;
 
     // Calculate rates
     // Acceptance rate: accepted / total_offers - percentage of offers that were accepted
     // Total offers includes all bookings (offered, accepted, canceled, etc.) except disputed
-    const acceptanceRate = totalOffers > 0 
-      ? Math.min(acceptedCount / totalOffers, 1.0) 
+    const acceptanceRate = totalOffers > 0
+      ? Math.min(acceptedCount / totalOffers, 1.0)
       : 0.0;
 
     // Completion rate: completed / accepted - percentage of accepted bookings that were completed
     // If no accepted bookings, rate is 0
-    const completionRate = acceptedCount > 0 
-      ? Math.min(completedCount / acceptedCount, 1.0) 
+    const completionRate = acceptedCount > 0
+      ? Math.min(completedCount / acceptedCount, 1.0)
       : 0.0;
 
     // Get categories

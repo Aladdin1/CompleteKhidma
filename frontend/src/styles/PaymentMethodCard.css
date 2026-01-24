@@ -1,0 +1,93 @@
+.payment-method-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  transition: box-shadow 0.2s;
+}
+
+.payment-method-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.payment-method-card.default {
+  border-color: #4CAF50;
+  background: #f1f8f4;
+}
+
+.payment-method-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.payment-method-info {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+}
+
+.method-icon {
+  font-size: 2rem;
+}
+
+.method-details h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+}
+
+.card-number,
+.wallet-info,
+.card-brand,
+.card-expiry {
+  margin: 0.25rem 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.default-badge {
+  background: #4CAF50;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.payment-method-actions {
+  display: flex;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.payment-method-actions .link-btn {
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.payment-method-actions .link-btn.danger {
+  color: #f44336;
+}
+
+.payment-method-actions .link-btn.danger:hover {
+  color: #d32f2f;
+}
+
+@media (max-width: 768px) {
+  .payment-method-card {
+    padding: 1rem;
+  }
+
+  .payment-method-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .payment-method-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}

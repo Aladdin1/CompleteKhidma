@@ -6,6 +6,35 @@ import jwt from 'jsonwebtoken';
 const router = express.Router();
 
 /**
+ * GET /api/v1/debug/otp?phone=+20...
+ * Dev-only: return current OTP for phone (from in-memory store).
+ * Used by test scripts. Disabled when NODE_ENV=production.
+ */
+router.get('/otp', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  const raw = (req.query.phone || '').trim();
+  const phone = raw.replace(/[\s\-\(\)]/g, '');
+  if (!phone) {
+    return res.status(400).json({ error: 'Missing phone query' });
+  }
+  const key = `otp:${phone}`;
+  const stored = global.otpStore?.get(key);
+  if (!stored || Date.now() > stored.expires) {
+    const debug = {
+      key,
+      hasStore: !!global.otpStore,
+      keys: global.otpStore ? [...global.otpStore.keys()] : [],
+      rawPhone: raw,
+      normalizedPhone: phone,
+    };
+    return res.status(404).json({ error: 'No OTP found or expired', debug });
+  }
+  res.json({ otp: stored.otp });
+});
+
+/**
  * GET /api/v1/debug/user-role
  * Debug endpoint to check current user role from token and database
  */

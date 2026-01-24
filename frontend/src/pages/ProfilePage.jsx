@@ -16,7 +16,7 @@ function ProfilePage() {
   const urlParams = new URLSearchParams(location.search);
   const tabFromUrl = urlParams.get('tab');
   
-  const [activeTab, setActiveTab] = useState(tabFromUrl && ['profile', 'addresses', 'notifications', 'account'].includes(tabFromUrl) ? tabFromUrl : 'profile');
+  const [activeTab, setActiveTab] = useState(tabFromUrl && ['profile', 'addresses', 'notifications', 'payments', 'account'].includes(tabFromUrl) ? tabFromUrl : 'profile');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -67,7 +67,7 @@ function ProfilePage() {
     // Check for tab parameter in URL
     const urlParams = new URLSearchParams(location.search);
     const tabParam = urlParams.get('tab');
-    if (tabParam && ['profile', 'addresses', 'notifications', 'account'].includes(tabParam)) {
+    if (tabParam && ['profile', 'addresses', 'notifications', 'payments', 'account'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [location.search]);
@@ -558,6 +558,28 @@ function ProfilePage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Payments Tab */}
+      {activeTab === 'payments' && (
+        <div className="profile-card">
+          <div className="section-header">
+            <h2>{t('payment.paymentMethods')}</h2>
+            <a href="/profile/payments" className="primary-btn">
+              {t('payment.manageMethods')}
+            </a>
+          </div>
+          <div className="quick-links">
+            <a href="/payments/history" className="link-card">
+              <h3>{t('payment.paymentHistory')}</h3>
+              <p>{t('payment.viewAllPayments')}</p>
+            </a>
+            <a href="/payments/analytics" className="link-card">
+              <h3>{t('payment.spendingAnalytics')}</h3>
+              <p>{t('payment.viewSpendingInsights')}</p>
+            </a>
+          </div>
         </div>
       )}
 

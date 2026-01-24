@@ -5,6 +5,9 @@ import DashboardPage from './pages/DashboardPage';
 import TaskCreatePage from './pages/TaskCreatePage';
 import TaskDetailPage from './pages/TaskDetailPage';
 import ProfilePage from './pages/ProfilePage';
+import PaymentMethodsPage from './pages/PaymentMethodsPage';
+import PaymentHistoryPage from './pages/PaymentHistoryPage';
+import SpendingAnalyticsPage from './pages/SpendingAnalyticsPage';
 import TaskerDashboardPage from './pages/TaskerDashboardPage';
 import AvailableTasksPage from './pages/AvailableTasksPage';
 import MyApplicationsPage from './pages/MyApplicationsPage';
@@ -51,6 +54,9 @@ function App() {
           />
           <Route path="tasks/:taskId" element={<TaskDetailPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="profile/payments" element={<PaymentMethodsPage />} />
+          <Route path="payments/history" element={<PaymentHistoryPage />} />
+          <Route path="payments/analytics" element={<SpendingAnalyticsPage />} />
           <Route path="become-tasker" element={<BecomeTaskerPage />} />
 
           {/* Tasker routes */}

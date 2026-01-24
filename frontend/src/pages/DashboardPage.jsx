@@ -151,6 +151,28 @@ function DashboardPage() {
 
       {error && <div className="error">{error}</div>}
 
+      {/* Quick Access Section */}
+      <div className="quick-access-section">
+        <h2>{t('dashboard.quickAccess')}</h2>
+        <div className="quick-access-cards">
+          <Link to="/profile/payments" className="quick-access-card">
+            <div className="card-icon">💳</div>
+            <h3>{t('payment.paymentMethods')}</h3>
+            <p>{t('payment.manageMethods')}</p>
+          </Link>
+          <Link to="/payments/history" className="quick-access-card">
+            <div className="card-icon">📋</div>
+            <h3>{t('payment.paymentHistory')}</h3>
+            <p>{t('payment.viewAllPayments')}</p>
+          </Link>
+          <Link to="/payments/analytics" className="quick-access-card">
+            <div className="card-icon">📊</div>
+            <h3>{t('payment.spendingAnalytics')}</h3>
+            <p>{t('payment.viewSpendingInsights')}</p>
+          </Link>
+        </div>
+      </div>
+
       {/* Search and Filter Section */}
       <div className="search-filter-section">
         <div className="search-bar">
