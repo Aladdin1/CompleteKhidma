@@ -76,6 +76,32 @@
   background: #d32f2f;
 }
 
+.nav .notification-center {
+  margin: 0 0.25rem;
+}
+
+.nav-messages-link {
+  position: relative;
+}
+
+.nav-messages-badge {
+  position: absolute;
+  top: -6px;
+  inset-inline-end: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #f44336;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .main-content {
   flex: 1;
   max-width: 1200px;

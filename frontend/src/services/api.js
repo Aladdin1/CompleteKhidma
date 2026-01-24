@@ -403,4 +403,48 @@ export const paymentAPI = {
   },
 };
 
+// Conversations & Messaging API
+export const conversationsAPI = {
+  list: async (params = {}) => {
+    const response = await api.get('/conversations', { params });
+    return response.data;
+  },
+
+  getByBooking: async (bookingId) => {
+    const response = await api.get(`/conversations/by-booking/${bookingId}`);
+    return response.data;
+  },
+
+  getMessages: async (conversationId, params = {}) => {
+    const response = await api.get(`/conversations/${conversationId}/messages`, { params });
+    return response.data;
+  },
+
+  sendMessage: async (conversationId, { kind = 'text', text, media_url }) => {
+    const response = await api.post(`/conversations/${conversationId}/messages`, {
+      kind,
+      ...(text !== undefined && { text }),
+      ...(media_url !== undefined && { media_url }),
+    }, {
+      headers: {
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+    });
+    return response.data;
+  },
+};
+
+// Notifications API
+export const notificationsAPI = {
+  list: async (params = {}) => {
+    const response = await api.get('/notifications', { params });
+    return response.data;
+  },
+
+  markAsRead: async (notificationId) => {
+    const response = await api.patch(`/notifications/${notificationId}/read`);
+    return response.data;
+  },
+};
+
 export default api;

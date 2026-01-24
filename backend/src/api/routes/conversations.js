@@ -203,6 +203,37 @@ router.post('/:conversation_id/messages', authenticate, idempotency, async (req,
       });
     }
 
+    const conversation = convResult.rows[0];
+    
+    // Get booking to find the other participant (recipient)
+    const bookingResult = await pool.query(
+      `SELECT b.tasker_id, t.client_id, t.category, t.description
+       FROM bookings b
+       JOIN tasks t ON b.task_id = t.id
+       WHERE b.id = $1`,
+      [conversation.booking_id]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Booking not found'
+        }
+      });
+    }
+
+    const booking = bookingResult.rows[0];
+    // Determine recipient: if sender is tasker, recipient is client; otherwise recipient is tasker
+    const recipientId = userId === booking.tasker_id ? booking.client_id : booking.tasker_id;
+    
+    // Get sender name for notification
+    const senderResult = await pool.query(
+      'SELECT full_name FROM users WHERE id = $1',
+      [userId]
+    );
+    const senderName = senderResult.rows[0]?.full_name || 'Someone';
+
     const messageId = uuidv4();
     const result = await pool.query(
       `INSERT INTO messages (id, conversation_id, sender_id, kind, text, media_url)
@@ -210,6 +241,34 @@ router.post('/:conversation_id/messages', authenticate, idempotency, async (req,
        RETURNING *`,
       [messageId, conversation_id, userId, kind, text || null, media_url || null]
     );
+
+    // Create notification for recipient
+    if (recipientId) {
+      const notificationId = uuidv4();
+      const messagePreview = kind === 'text' 
+        ? (text?.slice(0, 100) || '')
+        : kind === 'voice' 
+          ? 'رسالة صوتية'
+          : 'صورة';
+      
+      await pool.query(
+        `INSERT INTO notifications (id, user_id, kind, title, body, data)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          notificationId,
+          recipientId,
+          'message_received',
+          `رسالة جديدة من ${senderName}`,
+          messagePreview,
+          JSON.stringify({
+            conversation_id: conversation_id,
+            message_id: messageId,
+            sender_id: userId,
+            booking_id: conversation.booking_id
+          })
+        ]
+      );
+    }
 
     // TODO: Send WebSocket notification to other participant
     // TODO: Send push notification

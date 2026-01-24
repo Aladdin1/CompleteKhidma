@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { bookingAPI } from '../services/api';
 import '../styles/MyBookingsPage.css';
@@ -317,6 +317,13 @@ function MyBookingsPage() {
                   >
                     {t('tasker.viewDetails')}
                   </button>
+                  <Link
+                    to={`/messages?booking=${booking.id}`}
+                    className="primary-btn"
+                    style={{ textDecoration: 'none', display: 'inline-block', textAlign: 'center' }}
+                  >
+                    💬 {t('messages.title') || 'رسالة'}
+                  </Link>
                   {booking.status === 'offered' && (
                     <>
                       <button

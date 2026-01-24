@@ -14,6 +14,8 @@ import MyApplicationsPage from './pages/MyApplicationsPage';
 import MyBookingsPage from './pages/MyBookingsPage';
 import TaskerProfilePage from './pages/TaskerProfilePage';
 import BecomeTaskerPage from './pages/BecomeTaskerPage';
+import MessagesPage from './pages/MessagesPage';
+import NotificationsPage from './pages/NotificationsPage';
 import Layout from './components/Layout';
 
 function PrivateRoute({ children }) {
@@ -55,6 +57,8 @@ function App() {
           <Route path="tasks/:taskId" element={<TaskDetailPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="profile/payments" element={<PaymentMethodsPage />} />
+          <Route path="messages" element={<MessagesPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="payments/history" element={<PaymentHistoryPage />} />
           <Route path="payments/analytics" element={<SpendingAnalyticsPage />} />
           <Route path="become-tasker" element={<BecomeTaskerPage />} />

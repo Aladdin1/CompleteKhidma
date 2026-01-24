@@ -111,6 +111,15 @@ To become the default operating system for local, on-demand human labor.
 - **US-C-019**: As a client, I want to receive notifications when a tasker accepts my task, so that I know my task is confirmed.
 - **US-C-020**: As a client, I want to receive updates when the tasker is on the way, so that I can prepare for their arrival.
 
+#### Messaging System UI
+- **US-C-086**: As a client, I want to access a dedicated messaging page (`/messages`) with a conversation list sidebar and active conversation view, so that I can easily manage all my task-related conversations in one place.
+- **US-C-087**: As a client, I want to compose and send messages via a message input with send button, so that I can communicate clearly with my tasker.
+- **US-C-088**: As a client, I want messages to update in real-time (e.g. WebSocket), so that I see new messages immediately without refreshing.
+- **US-C-089**: As a client, I want to see unread message indicators on conversations, so that I know which chats need my attention.
+- **US-C-090**: As a client, I want a notification center (bell icon in the header) with a dropdown of recent notifications, so that I can stay informed at a glance.
+- **US-C-091**: As a client, I want to mark notifications as read and access a full notifications page from the notification center, so that I can manage what I have seen and view my complete notification history.
+- **US-C-092**: As a client, I want to receive toast notifications for new messages and see a badge count on the messages icon, so that I am alerted even when not on the messages page.
+
 #### Task Tracking & Management
 - **US-C-021**: As a client, I want to track my task status in real-time (posted, accepted, in progress, completed), so that I know what's happening.
 - **US-C-022**: As a client, I want to cancel my task before it's accepted, so that I'm not charged for tasks I no longer need.
@@ -185,6 +194,15 @@ To become the default operating system for local, on-demand human labor.
 - **US-T-025**: As a tasker, I want to communicate with the client during the task, so that I can ask questions or provide updates.
 - **US-T-026**: As a tasker, I want to submit my completed hours, so that I can get paid for the work I did.
 - **US-T-027**: As a tasker, I want to upload photos of completed work, so that I can prove the task was done properly.
+
+#### Messaging System UI
+- **US-T-103**: As a tasker, I want to access a dedicated messaging page (`/messages`) with a conversation list sidebar and active conversation view, so that I can easily manage all my client conversations in one place.
+- **US-T-104**: As a tasker, I want to compose and send messages via a message input with send button, so that I can communicate clearly with clients.
+- **US-T-105**: As a tasker, I want messages to update in real-time (e.g. WebSocket), so that I see new messages immediately without refreshing.
+- **US-T-106**: As a tasker, I want to see unread message indicators on conversations, so that I know which chats need my attention.
+- **US-T-107**: As a tasker, I want a notification center (bell icon in the header) with a dropdown of recent notifications, so that I can stay informed at a glance.
+- **US-T-108**: As a tasker, I want to mark notifications as read and access a full notifications page from the notification center, so that I can manage what I have seen and view my complete notification history.
+- **US-T-109**: As a tasker, I want to receive toast notifications for new messages and see a badge count on the messages icon, so that I am alerted even when not on the messages page.
 
 #### Payments & Payouts
 - **US-T-028**: As a tasker, I want to receive payment after task completion, so that I'm compensated for my work.

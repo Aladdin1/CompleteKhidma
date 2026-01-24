@@ -277,6 +277,37 @@ i18n
             acceptOffer: 'قبول العرض',
             rejectOffer: 'رفض العرض',
             loading: 'جاري التحميل...'
+          },
+          messages: {
+            title: 'الرسائل',
+            noConversations: 'لا توجد محادثات',
+            task: 'مهمة',
+            conversation: 'محادثة',
+            selectConversation: 'اختر محادثة من القائمة',
+            loading: 'جاري التحميل...',
+            loadError: 'فشل تحميل المحادثات',
+            sendError: 'فشل إرسال الرسالة',
+            placeholder: 'اكتب رسالة...',
+            send: 'إرسال',
+            sending: 'جاري الإرسال...',
+            sent: 'تم إرسال الرسالة',
+            newMessage: 'رسالة جديدة',
+            voiceNote: 'رسالة صوتية'
+          },
+          notifications: {
+            title: 'الإشعارات',
+            viewAll: 'عرض الكل',
+            loading: 'جاري التحميل...',
+            empty: 'لا توجد إشعارات',
+            markRead: 'تعيين كمقروء',
+            justNow: 'الآن',
+            minutesAgo: 'منذ {{count}} د',
+            hoursAgo: 'منذ {{count}} س',
+            daysAgo: 'منذ {{count}} يوم',
+            pageTitle: 'الإشعارات',
+            loadError: 'فشل تحميل الإشعارات',
+            loadMore: 'تحميل المزيد',
+            ariaLabel: 'الإشعارات'
           }
         }
       },
@@ -553,6 +584,37 @@ i18n
             acceptOffer: 'Accept Offer',
             rejectOffer: 'Reject Offer',
             loading: 'Loading...'
+          },
+          messages: {
+            title: 'Messages',
+            noConversations: 'No conversations yet',
+            task: 'Task',
+            conversation: 'Conversation',
+            selectConversation: 'Select a conversation from the list',
+            loading: 'Loading...',
+            loadError: 'Failed to load conversations',
+            sendError: 'Failed to send message',
+            placeholder: 'Type a message...',
+            send: 'Send',
+            sending: 'Sending...',
+            sent: 'Message sent',
+            newMessage: 'New message',
+            voiceNote: 'Voice note'
+          },
+          notifications: {
+            title: 'Notifications',
+            viewAll: 'View all',
+            loading: 'Loading...',
+            empty: 'No notifications',
+            markRead: 'Mark read',
+            justNow: 'Just now',
+            minutesAgo: '{{count}}m ago',
+            hoursAgo: '{{count}}h ago',
+            daysAgo: '{{count}}d ago',
+            pageTitle: 'Notifications',
+            loadError: 'Failed to load notifications',
+            loadMore: 'Load more',
+            ariaLabel: 'Notifications'
           }
         }
       }

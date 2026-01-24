@@ -356,7 +356,31 @@ function TaskDetailPage() {
                 <span>معدل القبول: {(task.assigned_tasker.stats?.acceptance_rate * 100).toFixed(0)}%</span>
                 <span>معدل الإكمال: {(task.assigned_tasker.stats?.completion_rate * 100).toFixed(0)}%</span>
               </div>
+              {task.assigned_tasker.booking_id && (
+                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
+                  <Link
+                    to={`/messages?booking=${task.assigned_tasker.booking_id}`}
+                    className="primary-btn"
+                    style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}
+                  >
+                    💬 {t('messages.title') || 'رسالة'}
+                  </Link>
+                </div>
+              )}
             </div>
+          </div>
+        )}
+
+        {/* Show message button for taskers viewing their assigned task */}
+        {isAssignedTasker && task.assigned_tasker?.booking_id && (
+          <div className="task-section">
+            <Link
+              to={`/messages?booking=${task.assigned_tasker.booking_id}`}
+              className="primary-btn"
+              style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center', width: '100%' }}
+            >
+              💬 {t('messages.title') || 'رسالة العميل'}
+            </Link>
           </div>
         )}
 
