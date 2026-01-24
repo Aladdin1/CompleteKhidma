@@ -79,6 +79,38 @@ router.get('/me/profile', authenticate, requireRole('tasker'), async (req, res, 
 
     const profile = profileResult.rows[0];
 
+    // Get booking statistics including rates
+    // Note: All bookings start as 'offered', so we count all bookings (except disputed) as offers
+    const bookingStatsResult = await pool.query(
+      `SELECT 
+        COUNT(CASE WHEN status = 'offered' THEN 1 END) as offered_count,
+        COUNT(CASE WHEN status IN ('accepted', 'confirmed', 'in_progress', 'completed') THEN 1 END) as accepted_count,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
+        COUNT(CASE WHEN status NOT IN ('disputed') THEN 1 END) as total_offers,
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN agreed_rate_amount ELSE 0 END), 0) as total_earnings
+       FROM bookings
+       WHERE tasker_id = $1`,
+      [userId]
+    );
+
+    const bookingStats = bookingStatsResult.rows[0];
+    const totalOffers = parseInt(bookingStats.total_offers) || 0;
+    const acceptedCount = parseInt(bookingStats.accepted_count) || 0;
+    const completedCount = parseInt(bookingStats.completed_count) || 0;
+
+    // Calculate rates
+    // Acceptance rate: accepted / total_offers - percentage of offers that were accepted
+    // Total offers includes all bookings (offered, accepted, canceled, etc.) except disputed
+    const acceptanceRate = totalOffers > 0 
+      ? Math.min(acceptedCount / totalOffers, 1.0) 
+      : 0.0;
+
+    // Completion rate: completed / accepted - percentage of accepted bookings that were completed
+    // If no accepted bookings, rate is 0
+    const completionRate = acceptedCount > 0 
+      ? Math.min(completedCount / acceptedCount, 1.0) 
+      : 0.0;
+
     // Get categories
     const categoriesResult = await pool.query(
       'SELECT category FROM tasker_categories WHERE tasker_id = $1',
@@ -115,8 +147,11 @@ router.get('/me/profile', authenticate, requireRole('tasker'), async (req, res, 
         count: profile.rating_count || 0
       },
       stats: {
-        acceptance_rate: parseFloat(profile.acceptance_rate) || 0,
-        completion_rate: parseFloat(profile.completion_rate) || 0
+        acceptance_rate: acceptanceRate,
+        completion_rate: completionRate,
+        offered_bookings_count: offeredCount,
+        completed_tasks_count: completedCount,
+        total_earnings: parseInt(bookingStats.total_earnings) || 0
       }
     });
   } catch (error) {
@@ -181,6 +216,35 @@ router.get('/:tasker_id/profile', authenticate, async (req, res, next) => {
 
     const profile = profileResult.rows[0];
 
+    // Get booking statistics including rates for clients to see
+    // Note: All bookings start as 'offered', so we count all bookings (except disputed) as offers
+    const bookingStatsResult = await pool.query(
+      `SELECT 
+        COUNT(CASE WHEN status = 'offered' THEN 1 END) as offered_count,
+        COUNT(CASE WHEN status IN ('accepted', 'confirmed', 'in_progress', 'completed') THEN 1 END) as accepted_count,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
+        COUNT(CASE WHEN status NOT IN ('disputed') THEN 1 END) as total_offers
+       FROM bookings
+       WHERE tasker_id = $1`,
+      [tasker_id]
+    );
+
+    const bookingStats = bookingStatsResult.rows[0];
+    const totalOffers = parseInt(bookingStats.total_offers) || 0;
+    const acceptedCount = parseInt(bookingStats.accepted_count) || 0;
+    const completedCount = parseInt(bookingStats.completed_count) || 0;
+
+    // Calculate rates dynamically
+    // Acceptance rate: accepted / total_offers - percentage of offers that were accepted
+    const acceptanceRate = totalOffers > 0 
+      ? Math.min(acceptedCount / totalOffers, 1.0) 
+      : 0.0;
+
+    // Completion rate: completed / accepted - percentage of accepted bookings that were completed
+    const completionRate = acceptedCount > 0 
+      ? Math.min(completedCount / acceptedCount, 1.0) 
+      : 0.0;
+
     // Get categories, skills, and service area
     const [categoriesResult, skillsResult, serviceAreaResult] = await Promise.all([
       pool.query('SELECT category FROM tasker_categories WHERE tasker_id = $1', [tasker_id]),
@@ -213,8 +277,8 @@ router.get('/:tasker_id/profile', authenticate, async (req, res, next) => {
         is_verified: profile.verification_status === 'verified' || profile.status === 'verified'
       },
       stats: {
-        acceptance_rate: parseFloat(profile.acceptance_rate) || 0,
-        completion_rate: parseFloat(profile.completion_rate) || 0
+        acceptance_rate: acceptanceRate,
+        completion_rate: completionRate
       }
     });
   } catch (error) {
@@ -452,9 +516,64 @@ router.get('/me/tasks/available', authenticate, requireRole('tasker'), paginatio
     query += ` ORDER BY ${orderBy} LIMIT $${paramIndex}`;
     params.push(limit + 1);
 
-    const result = await pool.query(query, params);
+    // Build count query with same filters but just COUNT
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM tasks t
+      WHERE t.state IN ('posted', 'matching')
+        AND (6371 * acos(
+          cos(radians($1)) * cos(radians(t.lat)) *
+          cos(radians(t.lng) - radians($2)) +
+          sin(radians($1)) * sin(radians(t.lat))
+        )) <= $3
+    `;
+    const countParams = [center_lat, center_lng, max_distance_km ? Math.min(Number(max_distance_km), radius_km) : radius_km];
+    let countParamIndex = 4;
+
+    if (categories.length > 0) {
+      countQuery += ` AND t.category = ANY($${countParamIndex})`;
+      countParams.push(categories);
+      countParamIndex++;
+    }
+
+    if (category) {
+      countQuery += ` AND t.category = $${countParamIndex}`;
+      countParams.push(category);
+      countParamIndex++;
+    }
+
+    if (min_price != null && min_price !== '') {
+      countQuery += ` AND t.est_min_amount >= $${countParamIndex}`;
+      countParams.push(Number(min_price));
+      countParamIndex++;
+    }
+
+    if (max_price != null && max_price !== '') {
+      countQuery += ` AND t.est_max_amount <= $${countParamIndex}`;
+      countParams.push(Number(max_price));
+      countParamIndex++;
+    }
+
+    if (starts_after) {
+      countQuery += ` AND t.starts_at >= $${countParamIndex}::timestamptz`;
+      countParams.push(starts_after);
+      countParamIndex++;
+    }
+
+    if (starts_before) {
+      countQuery += ` AND t.starts_at <= $${countParamIndex}::timestamptz`;
+      countParams.push(starts_before);
+      countParamIndex++;
+    }
+
+    const [result, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams)
+    ]);
+
     const tasks = result.rows.slice(0, limit);
     const nextCursor = result.rows.length > limit ? tasks[tasks.length - 1].id : null;
+    const totalCount = parseInt(countResult.rows[0].total) || 0;
 
     const formattedTasks = tasks.map(task => ({
       id: task.id,
@@ -493,7 +612,10 @@ router.get('/me/tasks/available', authenticate, requireRole('tasker'), paginatio
       created_at: task.created_at
     }));
 
-    res.json(formatPaginatedResponse(formattedTasks, nextCursor));
+    res.json({
+      ...formatPaginatedResponse(formattedTasks, nextCursor),
+      total_count: totalCount
+    });
   } catch (error) {
     next(error);
   }

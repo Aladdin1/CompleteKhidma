@@ -26,10 +26,9 @@ function TaskerDashboardPage() {
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      const [profileData, availableData, offeredData] = await Promise.all([
+      const [profileData, availableData] = await Promise.all([
         taskerAPI.getProfile().catch(() => null),
-        taskerAPI.getAvailableTasks({ limit: 1 }).catch(() => ({ items: [] })),
-        taskerAPI.getOfferedTasks({ limit: 1 }).catch(() => ({ items: [] })),
+        taskerAPI.getAvailableTasks({ limit: 1 }).catch(() => ({ items: [], total_count: 0 })),
       ]);
 
       if (profileData) {
@@ -38,9 +37,9 @@ function TaskerDashboardPage() {
 
       setStats({
         availableTasks: availableData.total_count || 0,
-        offeredTasks: offeredData.total_count || 0,
-        completedTasks: profileData?.completed_tasks_count || 0,
-        totalEarnings: profileData?.total_earnings || 0,
+        offeredTasks: profileData?.stats?.offered_bookings_count || 0,
+        completedTasks: profileData?.stats?.completed_tasks_count || 0,
+        totalEarnings: profileData?.stats?.total_earnings || 0,
       });
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to load dashboard');
@@ -72,8 +71,8 @@ function TaskerDashboardPage() {
       {profile && (
         <div className="profile-summary">
           <div className="rating">
-            <span className="rating-value">{profile.rating_avg?.toFixed(1) || '0.0'}</span>
-            <span className="rating-count">({profile.rating_count || 0} تقييم)</span>
+            <span className="rating-value">{profile.rating?.average?.toFixed(1) || '0.0'}</span>
+            <span className="rating-count">({profile.rating?.count || 0} تقييم)</span>
           </div>
           <div className="stats-grid">
             <div className="stat-card">
@@ -89,8 +88,8 @@ function TaskerDashboardPage() {
               <div className="stat-label">مهام مكتملة</div>
             </div>
             <div className="stat-card">
-              <div className="stat-value">{stats.totalEarnings.toFixed(2)}</div>
-              <div className="stat-label">إجمالي الأرباح</div>
+              <div className="stat-value">{stats.totalEarnings.toLocaleString()}</div>
+              <div className="stat-label">إجمالي الأرباح (EGP)</div>
             </div>
           </div>
         </div>

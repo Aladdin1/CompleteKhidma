@@ -309,10 +309,34 @@ router.get('/:task_id', authenticate, optionalAuth, async (req, res, next) => {
           const booking = bookingResult.rows[0];
           
           // Get tasker skills and categories
-          const [skillsResult, categoriesResult] = await Promise.all([
+          const [skillsResult, categoriesResult, ratesResult] = await Promise.all([
             pool.query('SELECT skill FROM tasker_skills WHERE tasker_id = $1', [booking.tasker_id]),
-            pool.query('SELECT category FROM tasker_categories WHERE tasker_id = $1', [booking.tasker_id])
+            pool.query('SELECT category FROM tasker_categories WHERE tasker_id = $1', [booking.tasker_id]),
+            pool.query(
+              `SELECT 
+                COUNT(CASE WHEN status = 'offered' THEN 1 END) as offered_count,
+                COUNT(CASE WHEN status IN ('accepted', 'confirmed', 'in_progress', 'completed') THEN 1 END) as accepted_count,
+                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count
+               FROM bookings
+               WHERE tasker_id = $1`,
+              [booking.tasker_id]
+            )
           ]);
+
+          const rates = ratesResult.rows[0];
+          const totalOffers = parseInt(rates.total_offers) || 0;
+          const acceptedCount = parseInt(rates.accepted_count) || 0;
+          const completedCount = parseInt(rates.completed_count) || 0;
+
+          // Calculate rates dynamically
+          // Acceptance rate: accepted / total_offers (all bookings except disputed count as offers)
+          const acceptanceRate = totalOffers > 0 
+            ? Math.min(acceptedCount / totalOffers, 1.0) 
+            : 0.0;
+
+          const completionRate = acceptedCount > 0 
+            ? Math.min(completedCount / acceptedCount, 1.0) 
+            : 0.0;
 
           assignedTasker = {
             user_id: booking.tasker_id,
@@ -333,8 +357,8 @@ router.get('/:task_id', authenticate, optionalAuth, async (req, res, next) => {
               is_verified: booking.verification_status === 'verified'
             },
             stats: {
-              acceptance_rate: parseFloat(booking.acceptance_rate) || 0,
-              completion_rate: parseFloat(booking.completion_rate) || 0
+              acceptance_rate: acceptanceRate,
+              completion_rate: completionRate
             }
           };
         }
@@ -1006,6 +1030,7 @@ router.get('/:task_id/candidates', authenticate, requireRole('client'), paginati
     const taskerIds = result.rows.map(row => row.tasker_id);
     let skillsMap = {};
     let categoriesMap = {};
+    let ratesMap = {};
 
     if (taskerIds.length > 0) {
       // Get skills
@@ -1031,6 +1056,41 @@ router.get('/:task_id/candidates', authenticate, requireRole('client'), paginati
       categoriesMap = categoriesResult.rows.reduce((acc, row) => {
         if (!acc[row.tasker_id]) acc[row.tasker_id] = [];
         acc[row.tasker_id].push(row.category);
+        return acc;
+      }, {});
+
+      // Calculate acceptance and completion rates for all taskers
+      const ratesResult = await pool.query(
+        `SELECT 
+          tasker_id,
+          COUNT(CASE WHEN status IN ('accepted', 'confirmed', 'in_progress', 'completed') THEN 1 END) as accepted_count,
+          COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
+          COUNT(CASE WHEN status NOT IN ('disputed') THEN 1 END) as total_offers
+         FROM bookings
+         WHERE tasker_id = ANY($1)
+         GROUP BY tasker_id`,
+        [taskerIds]
+      );
+
+      ratesMap = ratesResult.rows.reduce((acc, row) => {
+        const totalOffers = parseInt(row.total_offers) || 0;
+        const acceptedCount = parseInt(row.accepted_count) || 0;
+        const completedCount = parseInt(row.completed_count) || 0;
+
+        // Calculate rates
+        // Acceptance rate: accepted / total_offers (all bookings except disputed count as offers)
+        const acceptanceRate = totalOffers > 0 
+          ? Math.min(acceptedCount / totalOffers, 1.0) 
+          : 0.0;
+
+        const completionRate = acceptedCount > 0 
+          ? Math.min(completedCount / acceptedCount, 1.0) 
+          : 0.0;
+
+        acc[row.tasker_id] = {
+          acceptance_rate: acceptanceRate,
+          completion_rate: completionRate
+        };
         return acc;
       }, {});
     }
@@ -1064,8 +1124,8 @@ router.get('/:task_id/candidates', authenticate, requireRole('client'), paginati
             is_verified: row.verification_status === 'verified' || row.tasker_status === 'verified'
           },
           stats: {
-            acceptance_rate: parseFloat(row.acceptance_rate) || 0,
-            completion_rate: parseFloat(row.completion_rate) || 0
+            acceptance_rate: ratesMap[row.tasker_id]?.acceptance_rate ?? 0,
+            completion_rate: ratesMap[row.tasker_id]?.completion_rate ?? 0
           },
           service_area: row.tasker_lat ? {
             center: {
