@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { userAPI } from '../services/api';
 import useAuthStore from '../store/authStore';
 import i18n from '../i18n';
+import MapPicker from '../components/MapPicker';
 import '../styles/ProfilePage.css';
 
 function ProfilePage() {
@@ -40,6 +41,8 @@ function ProfilePage() {
     district: '',
     postal_code: '',
     country: 'Egypt',
+    latitude: null,
+    longitude: null,
     is_default: false,
   });
 
@@ -136,6 +139,13 @@ function ProfilePage() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    
+    // Validate that location is selected
+    if (!addressForm.latitude || !addressForm.longitude) {
+      setError('Please select a location on the map');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -156,6 +166,8 @@ function ProfilePage() {
         district: '',
         postal_code: '',
         country: 'Egypt',
+        latitude: null,
+        longitude: null,
         is_default: false,
       });
       loadAddresses();
@@ -188,9 +200,19 @@ function ProfilePage() {
       district: address.district || '',
       postal_code: address.postal_code || '',
       country: address.country || 'Egypt',
+      latitude: address.latitude || null,
+      longitude: address.longitude || null,
       is_default: address.is_default,
     });
     setShowAddressForm(true);
+  };
+
+  const handleLocationSelect = (lat, lng) => {
+    setAddressForm(prev => ({
+      ...prev,
+      latitude: lat,
+      longitude: lng,
+    }));
   };
 
   const handlePhoneChangeRequest = async () => {
@@ -395,6 +417,8 @@ function ProfilePage() {
                   district: '',
                   postal_code: '',
                   country: 'Egypt',
+                  latitude: null,
+                  longitude: null,
                   is_default: false,
                 });
               }}
@@ -415,6 +439,20 @@ function ProfilePage() {
                   required
                 />
               </div>
+              
+              <div className="form-group">
+                <label>{t('profile.selectLocation')} <span className="required">*</span></label>
+                <MapPicker
+                  latitude={addressForm.latitude}
+                  longitude={addressForm.longitude}
+                  onLocationSelect={handleLocationSelect}
+                  center={[30.0444, 31.2357]} // Cairo, Egypt
+                />
+                {!addressForm.latitude || !addressForm.longitude ? (
+                  <p className="error-text">Please select a location on the map</p>
+                ) : null}
+              </div>
+
               <div className="form-group">
                 <label>{t('profile.addressLine1')}</label>
                 <input
@@ -462,7 +500,7 @@ function ProfilePage() {
                 </label>
               </div>
               <div className="form-actions">
-                <button type="submit" disabled={loading} className="primary-btn">
+                <button type="submit" disabled={loading || !addressForm.latitude || !addressForm.longitude} className="primary-btn">
                   {editingAddress ? t('profile.update') : t('profile.add')}
                 </button>
                 <button

@@ -1,0 +1,8 @@
+{
+  "template": "vite-react-shadcn-ts",
+  "ignore": [
+    "src/components/ui/*",
+    "src/hooks/use-toast.ts",
+    "src/hooks/use-mobile.tsx"
+  ]
+}
