@@ -27,7 +27,7 @@ function ConversationList({ conversations, selectedId, loading, getConversationL
       {conversations.map((c) => (
         <Link
           key={c.id}
-          to={`/messages?conversation=${c.id}`}
+          to={`/dashboard/messages?conversation=${c.id}`}
           className={`conversation-list__item ${selectedId === c.id ? 'conversation-list__item--active' : ''}`}
         >
           <div className="conversation-list__avatar">

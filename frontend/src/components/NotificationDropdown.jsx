@@ -25,7 +25,7 @@ function NotificationDropdown({ notifications, loading, onMarkRead, onClose }) {
       const data = typeof n.data === 'string' ? JSON.parse(n.data) : n.data;
       if (data?.conversation_id) {
         onClose();
-        navigate(`/messages?conversation=${data.conversation_id}`);
+        navigate(`/dashboard/messages?conversation=${data.conversation_id}`);
       }
     }
   };
@@ -34,7 +34,7 @@ function NotificationDropdown({ notifications, loading, onMarkRead, onClose }) {
     <div className="notification-dropdown" role="menu">
       <div className="notification-dropdown__header">
         <span className="notification-dropdown__title">{t('notifications.title')}</span>
-        <Link to="/notifications" onClick={onClose} className="notification-dropdown__link">
+        <Link to="/dashboard/notifications" onClick={onClose} className="notification-dropdown__link">
           {t('notifications.viewAll')}
         </Link>
       </div>

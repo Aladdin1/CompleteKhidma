@@ -171,7 +171,7 @@ function MessagesPage() {
   const selectedConversation = conversations.find((c) => c.id === conversationId);
 
   return (
-    <div className="messages-page">
+    <div className="messages-page" style={{ width: '100%', maxWidth: 'none', margin: 0 }}>
       <header className="messages-page__header">
         <h1 className="messages-page__title">{t('messages.title')}</h1>
       </header>

@@ -137,6 +137,7 @@ function App() {
           element={<TaskIdRedirect />} 
         />
         <Route path="/profile" element={<Navigate to="/dashboard/profile" replace />} />
+        <Route path="/notifications" element={<Navigate to="/dashboard/notifications" replace />} />
         <Route path="/tasker/profile" element={<Navigate to="/dashboard/tasker/profile" replace />} />
         <Route path="/tasker" element={<Navigate to="/dashboard/tasker" replace />} />
         <Route path="/tasker/tasks/available" element={<Navigate to="/dashboard/tasker/tasks/available" replace />} />

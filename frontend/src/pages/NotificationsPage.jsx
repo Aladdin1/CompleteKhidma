@@ -51,7 +51,7 @@ function NotificationsPage() {
     if (n.kind === 'message_received') {
       const data = typeof n.data === 'string' ? JSON.parse(n.data) : n.data;
       if (data?.conversation_id) {
-        navigate(`/messages?conversation=${data.conversation_id}`);
+        navigate(`/dashboard/messages?conversation=${data.conversation_id}`);
       }
     }
   };
