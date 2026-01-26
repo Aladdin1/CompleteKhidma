@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { taskAPI, taskerAPI } from '../services/api';
-import useAuthStore from '../store/authStore';
-import ReviewForm from '../components/ReviewForm';
-import '../styles/TaskDetailPage.css';
+import { ArrowLeft, Star, MapPin, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { taskAPI } from '@/services/api';
+import useAuthStore from '@/store/authStore';
+import ReviewForm from '@/components/ReviewForm';
+import { services } from '@/data/services';
 
 function TaskDetailPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { taskId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -16,6 +20,7 @@ function TaskDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCandidates, setShowCandidates] = useState(false);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [canAccept, setCanAccept] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -53,7 +58,7 @@ function TaskDetailPage() {
 
       // Load candidates if task is posted (for clients to see)
       if ((taskData.state === 'posted' || taskData.state === 'matching') && taskData.client_id === user?.id) {
-        await loadCandidates();
+        await loadCandidates(taskData);
       }
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to load task');
@@ -62,25 +67,23 @@ function TaskDetailPage() {
     }
   };
 
-  const loadCandidates = async () => {
-    // Only load for clients (task owners)
-    // Note: task state is checked before calling this function
-    if (!task || !user || task.client_id !== user.id) {
-      console.warn('Cannot load candidates: not task owner');
-      return;
-    }
-    
+  const loadCandidates = async (taskOverride = null) => {
+    const ctx = taskOverride || task;
+    if (!ctx || !user || ctx.client_id !== user.id) return;
     try {
+      setCandidatesLoading(true);
       const response = await taskAPI.getCandidates(taskId);
       setCandidates(response.items || []);
       setShowCandidates(true);
-      setError(''); // Clear any previous errors
+      setError('');
     } catch (err) {
       console.error('Failed to load candidates:', err);
       const errorMsg = err.response?.data?.error?.message || 'Failed to load available taskers';
-      setError(`تعذر تحميل العمال المتاحين: ${errorMsg}`);
-      setShowCandidates(true); // Still show the section even if empty
+      setError(i18n.language === 'ar' ? `تعذر تحميل العمال المتاحين: ${errorMsg}` : errorMsg);
+      setShowCandidates(true);
       setCandidates([]);
+    } finally {
+      setCandidatesLoading(false);
     }
   };
 
@@ -89,7 +92,7 @@ function TaskDetailPage() {
 
     try {
       await taskAPI.cancel(taskId);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to cancel task');
     }
@@ -101,8 +104,8 @@ function TaskDetailPage() {
     try {
       await taskAPI.accept(taskId);
       setError('');
-      alert('تم قبول المهمة بنجاح!');
-      navigate('/tasker/bookings');
+      alert(i18n.language === 'ar' ? 'تم قبول المهمة بنجاح!' : 'Task accepted!');
+      navigate('/dashboard/tasker/bookings');
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to accept task');
     }
@@ -187,384 +190,410 @@ function TaskDetailPage() {
   };
 
   if (loading) {
-    return <div className="spinner" />;
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <div className="text-gray-500">Loading…</div>
+      </div>
+    );
   }
 
   if (error && !task) {
-    return <div className="error">{error}</div>;
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="rounded-lg bg-red-50 text-red-800 p-4">{error}</div>
+        <Link to="/dashboard"><Button variant="outline" className="mt-4">← {i18n.language === 'ar' ? 'رجوع' : 'Back'}</Button></Link>
+      </div>
+    );
   }
 
   if (!task) {
-    return <div>Task not found</div>;
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8 text-center">
+        <p className="text-gray-600 mb-4">{i18n.language === 'ar' ? 'المهمة غير موجودة' : 'Task not found'}</p>
+        <Link to="/dashboard"><Button variant="outline">← {i18n.language === 'ar' ? 'رجوع' : 'Back'}</Button></Link>
+      </div>
+    );
   }
 
+  const service = services.find((s) => s.id === task.category);
+  const categoryName = service ? (i18n.language === 'ar' ? service.nameAr : service.name) : task.category;
+  const categoryIcon = service?.icon ?? '📋';
+  const categoryImage = service?.image;
+  const averagePrice = service?.averagePrice ?? (task.pricing?.estimate
+    ? `${task.pricing.estimate.min_total?.amount}–${task.pricing.estimate.max_total?.amount} ${task.pricing.estimate.min_total?.currency}`
+    : null);
+
   return (
-    <div className="task-detail-page">
-      <div className="page-header">
-        <Link to="/" className="back-link">← رجوع</Link>
-        <h1>تفاصيل المهمة</h1>
-      </div>
-
-      {error && <div className="error">{error}</div>}
-
-      <div className="task-detail-card">
-        <div className="task-header">
-          <h2>{task.category}</h2>
-          <span className={`state-badge state-${task.state}`}>
-            {getStateLabel(task.state)}
-          </span>
-        </div>
-
-        <div className="task-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <h3>{t('task.description')}</h3>
-            {isTaskOwner && ['draft', 'posted'].includes(task.state) && !isEditing && (
-              <button onClick={handleEdit} className="edit-btn">
-                {t('task.edit')}
-              </button>
-            )}
-          </div>
-          {isEditing ? (
-            <div className="edit-form">
-              <textarea
-                value={editFormData.description}
-                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                className="edit-textarea"
-                rows="4"
-              />
-              <div className="edit-actions">
-                <button onClick={handleSaveEdit} className="save-btn">
-                  {t('task.save')}
-                </button>
-                <button onClick={handleCancelEdit} className="cancel-btn">
-                  {t('task.cancel')}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p>{task.description}</p>
-          )}
-        </div>
-
-        <div className="task-section">
-          <h3>الموقع</h3>
-          <p>📍 {task.location?.address || task.location?.city}</p>
-          {task.location?.district && <p>المنطقة: {task.location.district}</p>}
-        </div>
-
-        <div className="task-section">
-          <h3>{t('task.schedule')}</h3>
-          {isEditing ? (
-            <div className="edit-form">
-              <label>
-                {t('task.startTime')}
-                <input
-                  type="datetime-local"
-                  value={editFormData.starts_at}
-                  onChange={(e) => setEditFormData({ ...editFormData, starts_at: e.target.value })}
-                  className="edit-input"
-                />
-              </label>
-              <label>
-                {t('task.flexibilityMinutes')}
-                <input
-                  type="number"
-                  value={editFormData.flexibility_minutes}
-                  onChange={(e) => setEditFormData({ ...editFormData, flexibility_minutes: parseInt(e.target.value) || 0 })}
-                  className="edit-input"
-                  min="0"
-                />
-              </label>
-            </div>
-          ) : (
-            <p>
-              {new Date(task.schedule?.starts_at || task.created_at).toLocaleString('ar-EG', {
-                dateStyle: 'full',
-                timeStyle: 'short',
-              })}
-              {task.schedule?.flexibility_minutes > 0 && (
-                <span> ({t('task.flexibility')}: {task.schedule.flexibility_minutes} {t('task.minutes')})</span>
-              )}
-            </p>
-          )}
-        </div>
-
-        {task.pricing?.estimate && (
-          <div className="task-section">
-            <h3>التكلفة المقدرة</h3>
-            <p>
-              {task.pricing.estimate.min_total?.amount} - {task.pricing.estimate.max_total?.amount}{' '}
-              {task.pricing.estimate.min_total?.currency}
-            </p>
-          </div>
-        )}
-
-        {/* Show assigned tasker if task has an assigned tasker (offered or accepted) */}
-        {isTaskOwner && task.assigned_tasker && (
-          <div className="task-section">
-            <h3>العامل المكلف</h3>
-            <div className="assigned-tasker-card">
-              <div className="tasker-header">
-                <div className="tasker-main-info">
-                  <h4>{task.assigned_tasker.full_name}</h4>
-                  {task.assigned_tasker.verification?.is_verified && (
-                    <span className="verified-badge">✓ موثق</span>
-                  )}
-                  {/* Show booking status badge */}
-                  {task.assigned_tasker.booking_status === 'offered' && (
-                    <span className="status-badge status-offered" style={{ marginLeft: '0.5rem' }}>
-                      ⏳ في انتظار القبول
-                    </span>
-                  )}
-                  {task.assigned_tasker.booking_status === 'accepted' && (
-                    <span className="status-badge status-accepted" style={{ marginLeft: '0.5rem' }}>
-                      ✓ تم القبول
-                    </span>
-                  )}
-                </div>
-                <div className="tasker-rating">
-                  ⭐ {task.assigned_tasker.rating?.average?.toFixed(1) || '0.0'} (
-                  {task.assigned_tasker.rating?.count || 0} تقييم)
-                </div>
-              </div>
-              {task.assigned_tasker.booking_status === 'offered' && (
-                <div className="waiting-notice" style={{ 
-                  padding: '1rem', 
-                  backgroundColor: '#fff3cd', 
-                  border: '1px solid #ffc107', 
-                  borderRadius: '4px',
-                  marginBottom: '1rem',
-                  textAlign: 'center'
-                }}>
-                  <p style={{ margin: 0, fontWeight: 'bold', color: '#856404' }}>
-                    ⏳ في انتظار رد العامل على العرض
-                  </p>
-                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#856404' }}>
-                    سيتم إشعارك عند قبول أو رفض العرض
-                  </p>
-                </div>
-              )}
-              {task.assigned_tasker.bio && (
-                <p className="tasker-bio">{task.assigned_tasker.bio}</p>
-              )}
-              {task.assigned_tasker.skills && task.assigned_tasker.skills.length > 0 && (
-                <div className="tasker-skills">
-                  <strong>المهارات:</strong> {task.assigned_tasker.skills.join('، ')}
-                </div>
-              )}
-              <div className="tasker-stats">
-                <span>معدل القبول: {(task.assigned_tasker.stats?.acceptance_rate * 100).toFixed(0)}%</span>
-                <span>معدل الإكمال: {(task.assigned_tasker.stats?.completion_rate * 100).toFixed(0)}%</span>
-              </div>
-              {task.assigned_tasker.booking_id && (
-                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
-                  <Link
-                    to={`/messages?booking=${task.assigned_tasker.booking_id}`}
-                    className="primary-btn"
-                    style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}
-                  >
-                    💬 {t('messages.title') || 'رسالة'}
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Show message button for taskers viewing their assigned task */}
-        {isAssignedTasker && task.assigned_tasker?.booking_id && (
-          <div className="task-section">
-            <Link
-              to={`/messages?booking=${task.assigned_tasker.booking_id}`}
-              className="primary-btn"
-              style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center', width: '100%' }}
-            >
-              💬 {t('messages.title') || 'رسالة العميل'}
+    <div className="min-h-screen flex flex-col bg-white">
+      <div className="flex-1">
+        {/* Header — same vibe as /services/cleaning */}
+        <section className="bg-gradient-to-br from-teal-50 to-blue-50 py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <Link to="/dashboard" className="inline-flex items-center text-gray-700 hover:text-teal-600 mb-6 transition-colors">
+              <ArrowLeft className="mr-2" size={20} />
+              {i18n.language === 'ar' ? 'العودة إلى المهام' : 'Back to my tasks'}
             </Link>
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                ['posted', 'matching'].includes(task.state) ? 'bg-amber-100 text-amber-800' :
+                task.state === 'completed' || task.state === 'reviewed' ? 'bg-green-100 text-green-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {getStateLabel(task.state)}
+              </span>
+            </div>
+            <div className="grid md:grid-cols-2 gap-8 items-center">
+              <div>
+                <div className="text-6xl mb-4">{categoryIcon}</div>
+                <h1 className="text-4xl font-bold text-gray-900 mb-4">{categoryName}</h1>
+                <p className="text-xl text-gray-700 mb-4">{task.description}</p>
+                <div className="flex flex-wrap items-center gap-4 text-gray-600">
+                  {averagePrice && (
+                    <>
+                      <span className="font-semibold">{averagePrice}</span>
+                      <span className="text-gray-400">•</span>
+                    </>
+                  )}
+                  <span className="flex items-center gap-2">
+                    <MapPin size={18} className="text-gray-400" />
+                    {task.location?.address || task.location?.city}
+                  </span>
+                </div>
+                <p className="text-gray-600 mt-2">
+                  {new Date(task.schedule?.starts_at || task.created_at).toLocaleString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB', {
+                    dateStyle: 'full',
+                    timeStyle: 'short',
+                  })}
+                  {task.schedule?.flexibility_minutes > 0 && (
+                    <span> ({t('task.flexibility')}: {task.schedule.flexibility_minutes} {t('task.minutes')})</span>
+                  )}
+                </p>
+              </div>
+              {categoryImage && (
+                <div>
+                  <img src={categoryImage} alt={categoryName} className="rounded-2xl shadow-2xl w-full object-cover max-h-64 md:max-h-80" />
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {error && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <div className="rounded-lg bg-red-50 text-red-800 p-4 text-sm">{error}</div>
           </div>
         )}
 
-        {/* Show candidates section to task owners (clients) when task is posted or matching */}
-        {isTaskOwner && (task.state === 'posted' || task.state === 'matching') && !task.assigned_tasker && (
-          <div className="task-section">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3>العمال المتاحون</h3>
-              {!showCandidates && (
-                <button
-                  onClick={() => loadCandidates()}
-                  className="primary-btn"
-                  style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
-                >
-                  عرض العمال المتاحين
-                </button>
+        {/* Edit description/schedule — compact */}
+        {isTaskOwner && ['draft', 'posted', 'matching'].includes(task.state) && (
+          <section className="py-6 bg-white border-b border-gray-100">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              {isEditing ? (
+                <Card className="p-6">
+                  <textarea
+                    value={editFormData.description}
+                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                    className="w-full p-3 border border-gray-200 rounded-lg mb-4 min-h-[100px]"
+                    placeholder={t('task.description')}
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <label className="block">
+                      <span className="text-sm font-medium text-gray-700">{t('task.startTime')}</span>
+                      <input
+                        type="datetime-local"
+                        value={editFormData.starts_at}
+                        onChange={(e) => setEditFormData({ ...editFormData, starts_at: e.target.value })}
+                        className="mt-1 w-full p-2 border border-gray-200 rounded-lg"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-sm font-medium text-gray-700">{t('task.flexibilityMinutes')}</span>
+                      <input
+                        type="number"
+                        value={editFormData.flexibility_minutes}
+                        onChange={(e) => setEditFormData({ ...editFormData, flexibility_minutes: parseInt(e.target.value, 10) || 0 })}
+                        className="mt-1 w-full p-2 border border-gray-200 rounded-lg"
+                        min="0"
+                      />
+                    </label>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button onClick={handleSaveEdit} className="bg-teal-600 hover:bg-teal-700">{t('task.save')}</Button>
+                    <Button variant="outline" onClick={handleCancelEdit}>{t('task.cancel')}</Button>
+                  </div>
+                </Card>
+              ) : (
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" onClick={handleEdit}>{t('task.edit')}</Button>
+                </div>
               )}
             </div>
-            
-            {showCandidates ? (
-              candidates.length > 0 ? (
-                <div className="candidates-list">
-                  {candidates.map((candidate, index) => (
-                    <div key={candidate.tasker?.user_id || index} className="candidate-card">
-                      <div className="candidate-main">
-                        <div className="candidate-header">
-                          <div className="candidate-info">
-                            <div className="candidate-name-row">
-                              <h4>{candidate.tasker?.full_name || 'Tasker'}</h4>
-                              {candidate.tasker?.verification?.is_verified && (
-                                <span className="verified-badge-small">✓ موثق</span>
-                              )}
-                              <span className="candidate-rank-badge">#{candidate.rank}</span>
+          </section>
+        )}
+
+        {/* Assigned tasker — card style */}
+        {isTaskOwner && task.assigned_tasker && (
+          <section className="py-12 bg-gray-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                {i18n.language === 'ar' ? 'العامل المكلف' : 'Assigned Tasker'}
+              </h2>
+              <Card className="p-6">
+                <div className="flex flex-col md:flex-row gap-6">
+                  <Avatar className="w-24 h-24">
+                    <AvatarFallback>
+                      {(task.assigned_tasker.full_name || 'T').split(/\s+/).map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h3 className="text-xl font-bold text-gray-900">{task.assigned_tasker.full_name}</h3>
+                      {task.assigned_tasker.verification?.is_verified && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded bg-teal-100 text-teal-800">✓ {i18n.language === 'ar' ? 'موثق' : 'Verified'}</span>
+                      )}
+                      {task.assigned_tasker.booking_status === 'offered' && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                          ⏳ {i18n.language === 'ar' ? 'في انتظار القبول' : 'Waiting for acceptance'}
+                        </span>
+                      )}
+                      {task.assigned_tasker.booking_status === 'accepted' && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded bg-green-100 text-green-800">✓ {i18n.language === 'ar' ? 'تم القبول' : 'Accepted'}</span>
+                      )}
+                    </div>
+                    {task.assigned_tasker.booking_status === 'offered' && (
+                      <div className="mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200">
+                        <p className="font-medium text-amber-800">
+                          ⏳ {i18n.language === 'ar' ? 'في انتظار رد العامل على العرض' : 'Waiting for tasker to accept or decline.'}
+                        </p>
+                        <p className="text-sm text-amber-700 mt-1">
+                          {i18n.language === 'ar' ? 'سيتم إشعارك عند قبول أو رفض العرض' : 'You’ll be notified when they respond.'}
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-2">
+                      <span className="flex items-center gap-1">
+                        <Star className="text-yellow-500 fill-yellow-500" size={16} />
+                        {task.assigned_tasker.rating?.average?.toFixed(1) || '0.0'} ({task.assigned_tasker.rating?.count || 0} {i18n.language === 'ar' ? 'تقييم' : 'reviews'})
+                      </span>
+                      {task.assigned_tasker.stats && (
+                        <span>
+                          {i18n.language === 'ar' ? 'قبول' : 'Acceptance'} {(task.assigned_tasker.stats.acceptance_rate * 100).toFixed(0)}% · {i18n.language === 'ar' ? 'إكمال' : 'Completion'} {(task.assigned_tasker.stats.completion_rate * 100).toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
+                    {task.assigned_tasker.bio && <p className="text-gray-600 mb-2">{task.assigned_tasker.bio}</p>}
+                    {task.assigned_tasker.skills?.length > 0 && (
+                      <p className="text-sm text-gray-600 mb-4">
+                        <strong>{i18n.language === 'ar' ? 'المهارات:' : 'Skills:'}</strong> {task.assigned_tasker.skills.join(', ')}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-3">
+                      {task.assigned_tasker.booking_id && (
+                        <Link to={`/dashboard/messages?booking=${task.assigned_tasker.booking_id}`}>
+                          <Button className="bg-teal-600 hover:bg-teal-700">💬 {t('messages.title') || (i18n.language === 'ar' ? 'رسالة' : 'Message')}</Button>
+                        </Link>
+                      )}
+                      <Link
+                        to={`/dashboard/taskers/${task.assigned_tasker.user_id}`}
+                        state={{ from: `/dashboard/tasks/${taskId}` }}
+                      >
+                        <Button variant="outline">{i18n.language === 'ar' ? 'عرض الملف الشخصي' : 'View profile'}</Button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </section>
+        )}
+
+        {isAssignedTasker && task.assigned_tasker?.booking_id && (
+          <section className="py-6 bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <Link to={`/dashboard/messages?booking=${task.assigned_tasker.booking_id}`}>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700">💬 {t('messages.title') || (i18n.language === 'ar' ? 'رسالة العميل' : 'Message client')}</Button>
+              </Link>
+            </div>
+          </section>
+        )}
+
+        {/* Available Taskers — same layout as /services/cleaning */}
+        {isTaskOwner && (task.state === 'posted' || task.state === 'matching') && !task.assigned_tasker && (
+          <section className="py-12 bg-gray-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {i18n.language === 'ar' ? 'المهماتون المتاحون' : 'Available Taskers'}
+                </h2>
+                {showCandidates && !candidatesLoading && (
+                  <span className="text-gray-600">{candidates.length} {i18n.language === 'ar' ? 'مهمات' : 'Taskers'}</span>
+                )}
+              </div>
+              {!showCandidates && !candidatesLoading && (
+                <div className="flex justify-center py-12">
+                  <Button onClick={() => loadCandidates()} className="bg-teal-600 hover:bg-teal-700">
+                    {i18n.language === 'ar' ? 'عرض العمال المتاحين' : 'Load available taskers'}
+                  </Button>
+                </div>
+              )}
+              {candidatesLoading && (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <Card key={i} className="p-6 animate-pulse">
+                      <div className="flex flex-col md:flex-row gap-6">
+                        <div className="w-24 h-24 rounded-full bg-gray-200" />
+                        <div className="flex-1 space-y-3">
+                          <div className="h-6 w-48 bg-gray-200 rounded" />
+                          <div className="h-4 w-64 bg-gray-100 rounded" />
+                          <div className="h-10 w-32 bg-gray-200 rounded" />
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+              {showCandidates && !candidatesLoading && candidates.length === 0 && (
+                <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                  <p className="text-lg text-gray-600 mb-2">
+                    {i18n.language === 'ar' ? 'لا يوجد مهماتون متاحون حالياً' : 'No taskers available yet.'}
+                  </p>
+                  <Button onClick={() => loadCandidates()} variant="outline" className="mt-4">
+                    {i18n.language === 'ar' ? 'تحديث' : 'Refresh'}
+                  </Button>
+                </div>
+              )}
+              {showCandidates && !candidatesLoading && candidates.length > 0 && (
+                <div className="space-y-4">
+                  {candidates.map((c, idx) => {
+                    const tr = c.tasker;
+                    const name = tr?.full_name || 'Tasker';
+                    const rating = tr?.rating?.average != null ? Number(tr.rating.average) : null;
+                    const count = tr?.rating?.count ?? 0;
+                    const price = c.pricing?.estimate
+                      ? `${c.pricing.estimate.min_total?.amount}–${c.pricing.estimate.max_total?.amount} ${c.pricing.estimate.min_total?.currency}`
+                      : averagePrice;
+                    return (
+                      <Card key={tr?.user_id || idx} className="p-6 hover:shadow-lg transition-shadow">
+                        <div className="flex flex-col md:flex-row gap-6">
+                          <Avatar className="w-24 h-24">
+                            <AvatarFallback>
+                              {name.split(/\s+/).map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-3">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                  <h3 className="text-xl font-bold text-gray-900">{name}</h3>
+                                  {tr?.verification?.is_verified && (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-teal-100 text-teal-800">✓ {i18n.language === 'ar' ? 'موثق' : 'Verified'}</span>
+                                  )}
+                                  {c.rank != null && (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-800">#{c.rank}</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                                  <span className="flex items-center gap-1">
+                                    <Star className="text-yellow-500 fill-yellow-500" size={16} />
+                                    <span className="font-semibold">{rating != null ? rating.toFixed(1) : '—'}</span>
+                                    <span>({count} {i18n.language === 'ar' ? 'تقييم' : 'reviews'})</span>
+                                  </span>
+                                  {tr?.stats && (
+                                    <span className="flex items-center gap-1">
+                                      <CheckCircle className="text-green-600" size={16} />
+                                      {i18n.language === 'ar' ? 'قبول' : 'Accept'} {(tr.stats.acceptance_rate * 100).toFixed(0)}% · {i18n.language === 'ar' ? 'إكمال' : 'Complete'} {(tr.stats.completion_rate * 100).toFixed(0)}%
+                                    </span>
+                                  )}
+                                  {c.distance_km != null && (
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="text-gray-400" size={16} />
+                                      {c.distance_km} {i18n.language === 'ar' ? 'كم' : 'km'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right mt-4 md:mt-0">
+                                <div className="text-2xl font-bold text-gray-900">{price || '—'}</div>
+                              </div>
                             </div>
-                            <div className="candidate-rating">
-                              ⭐ {candidate.tasker?.rating?.average?.toFixed(1) || 'N/A'} (
-                              {candidate.tasker?.rating?.count || 0} تقييم)
+                            <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                              <Button
+                                className="flex-1 bg-teal-600 hover:bg-teal-700"
+                                onClick={() => handleSelectTasker(tr?.user_id)}
+                              >
+                                {i18n.language === 'ar' ? 'اختر هذا العامل' : 'Select this tasker'}
+                              </Button>
+                              <Button variant="outline" className="flex-1" asChild>
+                                <Link
+                                  to={`/dashboard/taskers/${tr?.user_id}`}
+                                  state={{ from: `/dashboard/tasks/${taskId}` }}
+                                >
+                                  {i18n.language === 'ar' ? 'عرض الملف الشخصي' : 'View profile'}
+                                </Link>
+                              </Button>
                             </div>
                           </div>
                         </div>
-
-                        {candidate.tasker?.bio && (
-                          <p className="candidate-bio">{candidate.tasker.bio}</p>
-                        )}
-
-                        <div className="candidate-details">
-                          {candidate.distance_km !== null && (
-                            <div className="detail-item">
-                              <span className="detail-icon">📍</span>
-                              <span>{candidate.distance_km} كم</span>
-                            </div>
-                          )}
-                          {candidate.tasker?.skills && candidate.tasker.skills.length > 0 && (
-                            <div className="detail-item">
-                              <span className="detail-icon">🛠️</span>
-                              <span>{candidate.tasker.skills.slice(0, 3).join('، ')}{candidate.tasker.skills.length > 3 ? '...' : ''}</span>
-                            </div>
-                          )}
-                          {candidate.pricing?.estimate && (
-                            <div className="detail-item">
-                              <span className="detail-icon">💰</span>
-                              <span>
-                                {candidate.pricing.estimate.min_total?.amount} - {candidate.pricing.estimate.max_total?.amount} {candidate.pricing.estimate.min_total?.currency}
-                              </span>
-                            </div>
-                          )}
-                          {candidate.tasker?.stats && (
-                            <div className="detail-item">
-                              <span className="detail-icon">📊</span>
-                              <span>
-                                قبول: {(candidate.tasker.stats.acceptance_rate * 100).toFixed(0)}% | 
-                                إكمال: {(candidate.tasker.stats.completion_rate * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="candidate-actions">
-                        <button
-                          className="select-tasker-btn"
-                          onClick={() => handleSelectTasker(candidate.tasker?.user_id)}
-                        >
-                          اختر هذا العامل
-                        </button>
-                        <button
-                          className="view-profile-btn"
-                          onClick={() => {
-                            // Could navigate to tasker profile page or show modal
-                            alert(`ملف ${candidate.tasker?.full_name} الشخصي`);
-                          }}
-                        >
-                          عرض الملف الشخصي
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                      </Card>
+                    );
+                  })}
                 </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
-                  <p>لا يوجد عمال متاحون حالياً</p>
-                  <button
-                    onClick={() => loadCandidates()}
-                    className="primary-btn"
-                    style={{ marginTop: '1rem' }}
-                  >
-                    تحديث
-                  </button>
-                </div>
-              )
-            ) : (
-              <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
-                <p>اضغط على الزر أعلاه لعرض العمال المتاحين</p>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          </section>
         )}
 
-        {/* Show review form for completed tasks */}
+        {/* Review form */}
         {canReview && !hasReviewed && (
-          <div className="task-section">
-            {!showReviewForm ? (
-              <div className="review-prompt">
-                <h3>{t('task.review')}</h3>
-                <p>
-                  {isTaskOwner 
-                    ? (t('task.rateTasker') || 'قيم العامل')
-                    : (t('task.rateClient') || 'قيم العميل')
-                  }
-                </p>
-                <button
-                  onClick={() => setShowReviewForm(true)}
-                  className="primary-btn"
-                >
-                  {t('task.writeReview') || 'اكتب تقييم'}
-                </button>
-              </div>
-            ) : (
-              <ReviewForm
-                bookingId={task.assigned_tasker.booking_id}
-                revieweeName={
-                  isTaskOwner 
-                    ? task.assigned_tasker.full_name
-                    : (t('task.client') || 'العميل')
-                }
-                onSuccess={() => {
-                  setShowReviewForm(false);
-                  setHasReviewed(true);
-                  loadTask(); // Reload to refresh task state
-                  alert(t('task.reviewSubmitted') || 'تم إرسال التقييم بنجاح');
-                }}
-                onCancel={() => setShowReviewForm(false)}
-              />
-            )}
-          </div>
+          <section className="py-12 bg-white border-t border-gray-100">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              {!showReviewForm ? (
+                <Card className="p-8 text-center">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{t('task.review')}</h3>
+                  <p className="text-gray-600 mb-4">
+                    {isTaskOwner ? (t('task.rateTasker') || (i18n.language === 'ar' ? 'قيم العامل' : 'Rate the tasker')) : (t('task.rateClient') || (i18n.language === 'ar' ? 'قيم العميل' : 'Rate the client'))}
+                  </p>
+                  <Button onClick={() => setShowReviewForm(true)} className="bg-teal-600 hover:bg-teal-700">
+                    {t('task.writeReview') || (i18n.language === 'ar' ? 'اكتب تقييم' : 'Write review')}
+                  </Button>
+                </Card>
+              ) : (
+                <ReviewForm
+                  bookingId={task.assigned_tasker.booking_id}
+                  revieweeName={isTaskOwner ? task.assigned_tasker.full_name : (t('task.client') || (i18n.language === 'ar' ? 'العميل' : 'Client'))}
+                  onSuccess={() => {
+                    setShowReviewForm(false);
+                    setHasReviewed(true);
+                    loadTask();
+                    alert(t('task.reviewSubmitted') || (i18n.language === 'ar' ? 'تم إرسال التقييم بنجاح' : 'Review submitted'));
+                  }}
+                  onCancel={() => setShowReviewForm(false)}
+                />
+              )}
+            </div>
+          </section>
         )}
 
-        <div className="task-actions">
-          {/* Show actions for task owner (client) */}
-          {isTaskOwner && (
-            <>
-              {task.state === 'draft' && (
-                <button
-                  onClick={() => taskAPI.post(taskId).then(() => loadTask())}
-                  className="primary-btn"
-                >
-                  {t('task.postTask')}
-                </button>
-              )}
-              {['draft', 'posted', 'matching'].includes(task.state) && (
-                <button onClick={handleCancel} className="danger-btn">
-                  إلغاء المهمة
-                </button>
-              )}
-            </>
-          )}
-          
-          {/* Show accept button for taskers viewing posted/matching tasks */}
-          {user?.role === 'tasker' && (task.state === 'posted' || task.state === 'matching') && (
-            <button onClick={handleAccept} className="primary-btn">
-              قبول المهمة
-            </button>
-          )}
-        </div>
+        {/* Actions */}
+        <section className="py-8 bg-gray-50 border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap gap-3">
+            {isTaskOwner && task.state === 'draft' && (
+              <Button onClick={() => taskAPI.post(taskId).then(() => loadTask())} className="bg-teal-600 hover:bg-teal-700">
+                {t('task.postTask')}
+              </Button>
+            )}
+            {isTaskOwner && ['draft', 'posted', 'matching'].includes(task.state) && (
+              <Button variant="destructive" onClick={handleCancel}>
+                {i18n.language === 'ar' ? 'إلغاء المهمة' : 'Cancel task'}
+              </Button>
+            )}
+            {user?.role === 'tasker' && (task.state === 'posted' || task.state === 'matching') && (
+              <Button onClick={handleAccept} className="bg-teal-600 hover:bg-teal-700">
+                {i18n.language === 'ar' ? 'قبول المهمة' : 'Accept task'}
+              </Button>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );

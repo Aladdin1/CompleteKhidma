@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { authAPI } from '../services/api';
 import useAuthStore from '../store/authStore';
-import '../styles/LoginPage.css';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Button } from '../components/ui/button';
 
 function LoginPage() {
   const { t, i18n } = useTranslation();
@@ -27,9 +30,17 @@ function LoginPage() {
   };
 
   useEffect(() => {
+    // Check for redirect parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirect = urlParams.get('redirect');
+    
     // Redirect if already authenticated
     if (isAuthenticated) {
-      navigate('/');
+      if (redirect) {
+        navigate(redirect);
+      } else {
+        navigate('/dashboard');
+      }
     }
     // Set RTL for Arabic
     document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
@@ -81,7 +92,16 @@ function LoginPage() {
       const response = await authAPI.verifyOTP(phone, otp, deviceId);
       
       setAuth(response.user, response.access_token, response.refresh_token);
-      navigate('/');
+      
+      // Check for redirect parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirect = urlParams.get('redirect');
+      
+      if (redirect) {
+        navigate(redirect);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.error?.message || t('auth.invalidOTP'));
     } finally {
@@ -90,20 +110,29 @@ function LoginPage() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-container">
-        <div className="login-card">
-          <h1>{t('app.name')}</h1>
-          <p className="tagline">{t('app.tagline')}</p>
-
-          {error && <div className="error">{error}</div>}
-          {success && <div className="success">{success}</div>}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-blue-50 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-3xl font-bold">{t('app.name')}</CardTitle>
+          <CardDescription className="text-base mt-2">{t('app.tagline')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="mb-4 p-3 rounded-md bg-destructive/10 text-destructive text-sm border border-destructive/20">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="mb-4 p-3 rounded-md bg-green-50 text-green-700 text-sm border border-green-200">
+              {success}
+            </div>
+          )}
 
           {step === 'phone' ? (
-            <form onSubmit={handleRequestOTP}>
-              <div className="form-group">
-                <label htmlFor="phone">{t('auth.phoneNumber')}</label>
-                <input
+            <form onSubmit={handleRequestOTP} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="phone">{t('auth.phoneNumber')}</Label>
+                <Input
                   id="phone"
                   type="tel"
                   value={phone}
@@ -111,17 +140,18 @@ function LoginPage() {
                   placeholder="+201234567890"
                   required
                   dir="ltr"
+                  disabled={loading}
                 />
               </div>
-              <button type="submit" disabled={loading} className="primary-btn">
+              <Button type="submit" disabled={loading} className="w-full" size="lg">
                 {loading ? '...' : t('auth.requestOTP')}
-              </button>
+              </Button>
             </form>
           ) : (
-            <form onSubmit={handleVerifyOTP}>
-              <div className="form-group">
-                <label htmlFor="otp">{t('auth.enterOTP')}</label>
-                <input
+            <form onSubmit={handleVerifyOTP} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="otp">{t('auth.enterOTP')}</Label>
+                <Input
                   id="otp"
                   type="text"
                   value={otp}
@@ -131,12 +161,19 @@ function LoginPage() {
                   required
                   dir="ltr"
                   autoFocus
+                  disabled={loading}
+                  className="text-center text-2xl tracking-widest"
                 />
               </div>
-              <button type="submit" disabled={loading || otp.length !== 6} className="primary-btn">
+              <Button 
+                type="submit" 
+                disabled={loading || otp.length !== 6} 
+                className="w-full" 
+                size="lg"
+              >
                 {loading ? '...' : t('auth.verifyOTP')}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => {
                   setStep('phone');
@@ -144,14 +181,15 @@ function LoginPage() {
                   setError('');
                   setSuccess('');
                 }}
-                className="secondary-btn"
+                variant="outline"
+                className="w-full"
               >
                 {t('auth.changePhone')}
-              </button>
+              </Button>
             </form>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -227,6 +227,13 @@ export const taskAPI = {
 
 // Tasker API
 export const taskerAPI = {
+  listByCategory: async (category, params = {}) => {
+    const response = await api.get('/taskers/list', {
+      params: { category, limit: params.limit ?? 20 }
+    });
+    return response.data;
+  },
+
   getProfile: async () => {
     const response = await api.get('/taskers/me/profile');
     return response.data;

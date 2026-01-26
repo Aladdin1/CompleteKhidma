@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Search, Filter, X, Plus, Copy, MapPin, Calendar, CreditCard, FileText, BarChart3 } from 'lucide-react';
 import { taskAPI } from '../services/api';
-import '../styles/DashboardPage.css';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 const CATEGORIES = [
   'cleaning',
@@ -17,7 +21,8 @@ const CATEGORIES = [
 ];
 
 function DashboardPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,10 +123,22 @@ function DashboardPage() {
 
       const newTask = await taskAPI.create(taskData);
       // Navigate to the new task
-      window.location.href = `/tasks/${newTask.id}`;
+      navigate(`/dashboard/tasks/${newTask.id}`);
     } catch (err) {
-      alert(err.response?.data?.error?.message || 'Failed to duplicate task');
+      setError(err.response?.data?.error?.message || 'Failed to duplicate task');
     }
+  };
+
+  const getStateBadgeVariant = (state) => {
+    const variantMap = {
+      draft: 'secondary',
+      posted: 'default',
+      matching: 'default',
+      accepted: 'default',
+      in_progress: 'default',
+      completed: 'outline',
+    };
+    return variantMap[state] || 'default';
   };
 
   const getStateLabel = (state) => {
@@ -137,181 +154,260 @@ function DashboardPage() {
   };
 
   if (loading) {
-    return <div className="spinner" />;
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+      </div>
+    );
   }
 
   return (
-    <div className="dashboard-page">
-      <div className="page-header">
-        <h1>{t('task.myTasks')}</h1>
-        <Link to="/tasks/create" className="create-btn">
-          + {t('task.create')}
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900">{t('task.myTasks')}</h1>
+        <Button onClick={() => navigate('/dashboard/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
+          <Plus className="mr-2 h-4 w-4" />
+          {t('task.create')}
+        </Button>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {/* Quick Access Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Link to="/dashboard/profile/payments">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <CreditCard className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">{t('payment.paymentMethods')}</CardTitle>
+                  <CardDescription>{t('payment.manageMethods')}</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link to="/dashboard/payments/history">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <FileText className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">{t('payment.paymentHistory')}</CardTitle>
+                  <CardDescription>{t('payment.viewAllPayments')}</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link to="/dashboard/payments/analytics">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <BarChart3 className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">{t('payment.spendingAnalytics')}</CardTitle>
+                  <CardDescription>{t('payment.viewSpendingInsights')}</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
         </Link>
       </div>
 
-      {error && <div className="error">{error}</div>}
-
-      {/* Quick Access Section */}
-      <div className="quick-access-section">
-        <h2>{t('dashboard.quickAccess')}</h2>
-        <div className="quick-access-cards">
-          <Link to="/profile/payments" className="quick-access-card">
-            <div className="card-icon">💳</div>
-            <h3>{t('payment.paymentMethods')}</h3>
-            <p>{t('payment.manageMethods')}</p>
-          </Link>
-          <Link to="/payments/history" className="quick-access-card">
-            <div className="card-icon">📋</div>
-            <h3>{t('payment.paymentHistory')}</h3>
-            <p>{t('payment.viewAllPayments')}</p>
-          </Link>
-          <Link to="/payments/analytics" className="quick-access-card">
-            <div className="card-icon">📊</div>
-            <h3>{t('payment.spendingAnalytics')}</h3>
-            <p>{t('payment.viewSpendingInsights')}</p>
-          </Link>
-        </div>
-      </div>
-
       {/* Search and Filter Section */}
-      <div className="search-filter-section">
-        <div className="search-bar">
-          <input
-            type="text"
-            placeholder={t('task.searchPlaceholder')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input"
-          />
-          <button
-            className="filter-toggle-btn"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            {t('task.filters')} {showFilters ? '▲' : '▼'}
-          </button>
-        </div>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                type="text"
+                placeholder={t('task.searchPlaceholder')}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className="w-full sm:w-auto"
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              {t('task.filters')}
+            </Button>
+          </div>
+        </CardHeader>
 
         {showFilters && (
-          <div className="filters-panel">
-            <div className="filter-group">
-              <label>{t('task.filterByStatus')}</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="all">{t('task.allStatuses')}</option>
-                <option value="draft">{t('task.draft')}</option>
-                <option value="posted">{t('task.posted')}</option>
-                <option value="matching">{t('task.matching')}</option>
-                <option value="accepted">{t('task.accepted')}</option>
-                <option value="in_progress">{t('task.inProgress')}</option>
-                <option value="completed">{t('task.completed')}</option>
-              </select>
-            </div>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('task.filterByStatus')}
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="all">{t('task.allStatuses')}</option>
+                  <option value="draft">{t('task.draft')}</option>
+                  <option value="posted">{t('task.posted')}</option>
+                  <option value="matching">{t('task.matching')}</option>
+                  <option value="accepted">{t('task.accepted')}</option>
+                  <option value="in_progress">{t('task.inProgress')}</option>
+                  <option value="completed">{t('task.completed')}</option>
+                </select>
+              </div>
 
-            <div className="filter-group">
-              <label>{t('task.filterByCategory')}</label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              >
-                <option value="all">{t('task.allCategories')}</option>
-                {CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('task.filterByCategory')}
+                </label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="all">{t('task.allCategories')}</option>
+                  {CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="filter-group">
-              <label>{t('task.sortBy')}</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="newest">{t('task.newestFirst')}</option>
-                <option value="oldest">{t('task.oldestFirst')}</option>
-                <option value="status">{t('task.sortByStatus')}</option>
-              </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('task.sortBy')}
+                </label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="newest">{t('task.newestFirst')}</option>
+                  <option value="oldest">{t('task.oldestFirst')}</option>
+                  <option value="status">{t('task.sortByStatus')}</option>
+                </select>
+              </div>
             </div>
-
-            <button
-              className="clear-filters-btn"
+            <Button
+              variant="ghost"
               onClick={() => {
                 setSearchQuery('');
                 setStatusFilter('all');
                 setCategoryFilter('all');
                 setSortBy('newest');
               }}
+              className="mt-4"
             >
+              <X className="mr-2 h-4 w-4" />
               {t('task.clearFilters')}
-            </button>
-          </div>
+            </Button>
+          </CardContent>
         )}
-      </div>
+      </Card>
 
       {/* Results count */}
       {tasks.length > 0 && (
-        <div className="results-count">
+        <div className="text-sm text-gray-600">
           {t('task.showingResults', { count: filteredTasks.length, total: tasks.length })}
         </div>
       )}
 
+      {/* Tasks Grid */}
       {tasks.length === 0 ? (
-        <div className="empty-state">
-          <p>{t('task.noTasks')}</p>
-          <Link to="/tasks/create" className="create-btn">
-            {t('task.create')}
-          </Link>
-        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <p className="text-gray-500 mb-4">{t('task.noTasks')}</p>
+            <Button onClick={() => navigate('/dashboard/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
+              <Plus className="mr-2 h-4 w-4" />
+              {t('task.create')}
+            </Button>
+          </CardContent>
+        </Card>
       ) : filteredTasks.length === 0 ? (
-        <div className="empty-state">
-          <p>{t('task.noMatchingTasks')}</p>
-          <button
-            className="clear-filters-btn"
-            onClick={() => {
-              setSearchQuery('');
-              setStatusFilter('all');
-              setCategoryFilter('all');
-            }}
-          >
-            {t('task.clearFilters')}
-          </button>
-        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <p className="text-gray-500 mb-4">{t('task.noMatchingTasks')}</p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('all');
+                setCategoryFilter('all');
+              }}
+            >
+              {t('task.clearFilters')}
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="tasks-grid">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredTasks.map((task) => (
-            <div key={task.id} className="task-card">
-              <Link to={`/tasks/${task.id}`} className="task-card-link">
-                <div className="task-header">
-                  <h3>{task.category}</h3>
-                  <span className={`state-badge state-${task.state}`}>
+            <Card key={task.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <CardTitle className="text-lg capitalize">{task.category}</CardTitle>
+                  <Badge variant={getStateBadgeVariant(task.state)}>
                     {getStateLabel(task.state)}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="task-description">{task.description}</p>
-                <div className="task-footer">
-                  <span className="task-location">📍 {task.location?.address || task.location?.city}</span>
-                  <span className="task-date">
-                    {new Date(task.schedule?.starts_at || task.created_at).toLocaleDateString('ar-EG')}
-                  </span>
+                <CardDescription className="mt-2 line-clamp-2">
+                  {task.description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    <span className="truncate">{task.location?.address || task.location?.city}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>
+                      {new Date(task.schedule?.starts_at || task.created_at).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}
+                    </span>
+                  </div>
                 </div>
-              </Link>
-              {task.state === 'completed' && (
-                <div className="task-card-actions">
-                  <button
-                    className="duplicate-btn"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleDuplicate(task);
-                    }}
-                    title={t('task.duplicate')}
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
                   >
-                    {t('task.duplicate')}
-                  </button>
+                    {i18n.language === 'ar' ? 'عرض' : 'View'}
+                  </Button>
+                  {task.state === 'completed' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleDuplicate(task);
+                      }}
+                      title={i18n.language === 'ar' ? 'نسخ' : 'Duplicate'}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

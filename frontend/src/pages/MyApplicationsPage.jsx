@@ -34,7 +34,7 @@ function MyApplicationsPage() {
       setProcessing(prev => new Set(prev).add(taskId));
       await taskAPI.accept(taskId);
       await loadOfferedTasks(); // Reload to update list
-      navigate(`/tasks/${taskId}`);
+      navigate(`/dashboard/tasks/${taskId}`);
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to accept task');
     } finally {
@@ -129,7 +129,7 @@ function MyApplicationsPage() {
                   </button>
                   <button
                     className="btn-view"
-                    onClick={() => navigate(`/tasks/${task.id}`)}
+                    onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
                   >
                     عرض التفاصيل
                   </button>

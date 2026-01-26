@@ -79,7 +79,7 @@ function MyBookingsPage() {
 
   const getStatusClass = (s) => `status-${s}`;
 
-  const handleViewTask = (taskId) => navigate(`/tasks/${taskId}`);
+  const handleViewTask = (taskId) => navigate(`/dashboard/tasks/${taskId}`);
 
   const refreshList = () => loadBookings(null);
 

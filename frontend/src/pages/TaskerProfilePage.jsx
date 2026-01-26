@@ -63,8 +63,19 @@ function TaskerProfilePage() {
       setLoading(true);
       setError('');
       const [me, taskerProfile, notifPrefs] = await Promise.all([
-        userAPI.getMe().catch(() => null),
-        taskerAPI.getProfile().catch(() => null),
+        userAPI.getMe().catch((err) => {
+          console.error('Failed to load user:', err);
+          return null;
+        }),
+        taskerAPI.getProfile().catch((err) => {
+          // 404 is OK for new taskers - profile might not exist yet or might be loading
+          if (err.response?.status === 404) {
+            console.log('Tasker profile not found yet - will be created on first save');
+            return null;
+          }
+          console.error('Failed to load tasker profile:', err);
+          return null;
+        }),
         userAPI.getNotificationPreferences().catch(() => ({ push_enabled: true, sms_enabled: false, email_enabled: false })),
       ]);
 
@@ -84,6 +95,9 @@ function TaskerProfilePage() {
               }
             : { center_lat: 30.0444, center_lng: 31.2357, radius_km: 10 },
         }));
+      } else {
+        // New tasker - initialize with defaults from user data
+        setProfile({ status: 'applied', rating: { average: 0, count: 0 }, stats: { acceptance_rate: 0, completion_rate: 0 } });
       }
       if (me) {
         setFormData((prev) => ({
@@ -101,6 +115,7 @@ function TaskerProfilePage() {
         });
       }
     } catch (err) {
+      console.error('Error loading profile:', err);
       setError(err.response?.data?.error?.message || 'Failed to load profile');
     } finally {
       setLoading(false);
@@ -240,7 +255,7 @@ function TaskerProfilePage() {
     }
   };
 
-  if (loading && !profile && !user) {
+  if (loading && !user) {
     return <div className="tasker-profile loading">Loading...</div>;
   }
 
@@ -268,6 +283,12 @@ function TaskerProfilePage() {
             <div className="stat-value">{((profile.stats?.completion_rate ?? 0) * 100).toFixed(1)}%</div>
             <div className="stat-label">{t('tasker.completionRate')}</div>
           </div>
+        </div>
+      )}
+
+      {!profile && !loading && (
+        <div className="info-message" style={{ padding: '1rem', background: '#f0f9ff', borderRadius: '8px', marginBottom: '1rem' }}>
+          <p>{i18nInstance.language === 'ar' ? 'مرحباً! يرجى إكمال ملفك الشخصي للبدء.' : 'Welcome! Please complete your profile to get started.'}</p>
         </div>
       )}
 

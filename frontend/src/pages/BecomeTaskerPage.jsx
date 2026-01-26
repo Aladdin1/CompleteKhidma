@@ -8,13 +8,13 @@ import '../styles/BecomeTaskerPage.css';
 function BecomeTaskerPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, updateUser } = useAuthStore();
+  const { user, setAuth, updateUser } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   const handleBecomeTasker = async () => {
-    if (!confirm('هل تريد التحول إلى مهمات؟ ستحتاج إلى تسجيل الخروج وإعادة تسجيل الدخول.')) {
+    if (!confirm('هل تريد التحول إلى مهمات؟')) {
       return;
     }
 
@@ -24,12 +24,15 @@ function BecomeTaskerPage() {
       setSuccess('');
       const result = await userAPI.becomeTasker();
       setSuccess(result.message);
-      // Update user in store
-      updateUser({ role: 'tasker' });
-      // Redirect after 2 seconds
+      // Store new tokens + user so JWT role matches DB (avoids role mismatch)
+      if (result.access_token && result.refresh_token && result.user) {
+        setAuth(result.user, result.access_token, result.refresh_token);
+      } else {
+        updateUser({ role: 'tasker' });
+      }
       setTimeout(() => {
-        navigate('/tasker/profile');
-      }, 2000);
+        navigate('/dashboard/tasker/profile');
+      }, 1500);
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to become tasker');
     } finally {
@@ -43,7 +46,7 @@ function BecomeTaskerPage() {
         <div className="already-tasker">
           <h2>أنت بالفعل مهمات!</h2>
           <p>يمكنك الوصول إلى جميع ميزات المهمات</p>
-          <button onClick={() => navigate('/tasker')}>الذهاب إلى لوحة المهمات</button>
+          <button onClick={() => navigate('/dashboard/tasker')}>الذهاب إلى لوحة المهمات</button>
         </div>
       </div>
     );
@@ -85,7 +88,6 @@ function BecomeTaskerPage() {
         <div className="info-box">
           <p><strong>ملاحظة:</strong> بعد التحول إلى مهمات، ستحتاج إلى:</p>
           <ol>
-            <li>تسجيل الخروج وإعادة تسجيل الدخول</li>
             <li>إكمال ملفك الشخصي (الفئات والمهارات)</li>
             <li>تحديد منطقة الخدمة</li>
           </ol>

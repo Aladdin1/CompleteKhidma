@@ -18,6 +18,8 @@ i18n
           },
           auth: {
             login: 'تسجيل الدخول',
+            signup: 'إنشاء حساب',
+            dashboard: 'لوحة التحكم',
             phoneNumber: 'رقم الهاتف',
             enterOTP: 'أدخل رمز التحقق',
             requestOTP: 'إرسال رمز التحقق',
@@ -327,6 +329,8 @@ i18n
           },
           auth: {
             login: 'Login',
+            signup: 'Sign Up',
+            dashboard: 'Dashboard',
             phoneNumber: 'Phone Number',
             enterOTP: 'Enter Verification Code',
             requestOTP: 'Send Verification Code',

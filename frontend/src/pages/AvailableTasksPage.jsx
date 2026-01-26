@@ -65,7 +65,7 @@ function AvailableTasksPage() {
     loadTasks(null);
   }, [loadTasks]);
 
-  const handleTaskClick = (taskId) => navigate(`/tasks/${taskId}`);
+  const handleTaskClick = (taskId) => navigate(`/dashboard/tasks/${taskId}`);
 
   const clearFilters = () => {
     setCategoryFilter('');

@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Calendar, ArrowLeft } from 'lucide-react';
 import { taskAPI, userAPI } from '../services/api';
-import '../styles/TaskCreatePage.css';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const CATEGORIES = [
   { key: 'cleaning', name: 'Cleaning', symbol: '🧹' },
@@ -20,6 +25,7 @@ const CATEGORIES = [
 function TaskCreatePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [addresses, setAddresses] = useState([]);
@@ -27,7 +33,7 @@ function TaskCreatePage() {
   const [addressMode, setAddressMode] = useState('saved'); // 'saved' or 'manual'
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [formData, setFormData] = useState({
-    category: '',
+    category: searchParams.get('category') || '', // Pre-fill category from URL
     description: '',
     address: '',
     city: 'Cairo',
@@ -128,7 +134,7 @@ function TaskCreatePage() {
       // Post task immediately
       await taskAPI.post(task.id);
       
-      navigate(`/tasks/${task.id}`);
+      navigate(`/dashboard/tasks/${task.id}`);
     } catch (err) {
       console.error('Task creation error:', err);
       const errorMessage = err.response?.data?.error?.message || err.message || 'Failed to create task';
@@ -149,185 +155,215 @@ function TaskCreatePage() {
   };
 
   return (
-    <div className="task-create-page">
-      <div className="page-header">
-        <h1>{t('task.create')}</h1>
+    <div className="space-y-6 max-w-3xl mx-auto">
+      {/* Page Header */}
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/dashboard')}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <h1 className="text-3xl font-bold text-gray-900">{t('task.create')}</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="task-form">
-        {error && <div className="error">{error}</div>}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('task.create')}</CardTitle>
+          <CardDescription>
+            {t('task.createDescription') || 'Fill in the details to create a new task'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                {error}
+              </div>
+            )}
 
-        <div className="form-group">
-          <label htmlFor="category">{t('task.category')}</label>
-          <select
-            id="category"
-            value={formData.category}
-            onChange={(e) => handleChange('category', e.target.value)}
-            required
-          >
-            <option value="">اختر الفئة</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat.key} value={cat.key}>
-                {cat.symbol} {cat.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="description">{t('task.description')}</label>
-          <textarea
-            id="description"
-            value={formData.description}
-            onChange={(e) => handleChange('description', e.target.value)}
-            rows={4}
-            required
-            placeholder="وصف المهمة..."
-          />
-        </div>
-
-        <div className="form-group">
-          <div className="address-selection-header">
-            <label htmlFor="address-select">{t('task.location')}</label>
-            <div className="address-mode-switch">
-              <button
-                type="button"
-                className={`mode-btn ${addressMode === 'saved' ? 'active' : ''}`}
-                onClick={() => {
-                  setAddressMode('saved');
-                  if (addresses.length > 0 && !selectedAddressId) {
-                    setSelectedAddressId(addresses[0].id);
-                    populateAddressFields(addresses[0]);
-                  }
-                }}
-                disabled={addresses.length === 0}
-              >
-                {t('task.useSavedAddress')}
-              </button>
-              <button
-                type="button"
-                className={`mode-btn ${addressMode === 'manual' ? 'active' : ''}`}
-                onClick={() => {
-                  setAddressMode('manual');
-                  setSelectedAddressId('');
-                }}
-              >
-                {t('task.enterManually')}
-              </button>
-            </div>
-          </div>
-
-          {addressMode === 'saved' && addresses.length > 0 ? (
-            <>
+            {/* Category */}
+            <div className="space-y-2">
+              <Label htmlFor="category">{t('task.category')}</Label>
               <select
-                id="address-select"
-                value={selectedAddressId}
-                onChange={(e) => handleAddressSelect(e.target.value)}
+                id="category"
+                value={formData.category}
+                onChange={(e) => handleChange('category', e.target.value)}
                 required
-                className="address-select"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <option value="">{t('task.selectAddress')}</option>
-                {addresses.map((addr) => (
-                  <option key={addr.id} value={addr.id}>
-                    {addr.label} {addr.is_default ? `(${t('profile.default')})` : ''} - {addr.address_line1}, {addr.city}
+                <option value="">{t('task.selectCategory') || 'Select a category'}</option>
+                {CATEGORIES.map((cat) => (
+                  <option key={cat.key} value={cat.key}>
+                    {cat.symbol} {cat.name}
                   </option>
                 ))}
               </select>
-              <div className="address-actions">
-                <button
-                  type="button"
-                  className="link-btn"
-                  onClick={() => navigate('/profile?tab=addresses')}
-                >
-                  {t('task.manageAddresses')}
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <input
-                id="address"
-                type="text"
-                value={formData.address}
-                onChange={(e) => handleChange('address', e.target.value)}
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="description">{t('task.description')}</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => handleChange('description', e.target.value)}
+                rows={4}
                 required
-                placeholder={t('task.addressPlaceholder')}
+                placeholder={t('task.descriptionPlaceholder') || 'Describe what you need help with...'}
               />
-              {addresses.length > 0 && (
-                <div className="address-actions">
-                  <button
+            </div>
+
+            {/* Location */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="address-select">{t('task.location')}</Label>
+                <div className="flex gap-2">
+                  <Button
                     type="button"
-                    className="link-btn"
+                    variant={addressMode === 'saved' ? 'default' : 'outline'}
+                    size="sm"
                     onClick={() => {
                       setAddressMode('saved');
-                      if (addresses.length > 0) {
+                      if (addresses.length > 0 && !selectedAddressId) {
                         setSelectedAddressId(addresses[0].id);
                         populateAddressFields(addresses[0]);
                       }
                     }}
+                    disabled={addresses.length === 0}
                   >
                     {t('task.useSavedAddress')}
-                  </button>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={addressMode === 'manual' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setAddressMode('manual');
+                      setSelectedAddressId('');
+                    }}
+                  >
+                    {t('task.enterManually')}
+                  </Button>
+                </div>
+              </div>
+
+              {addressMode === 'saved' && addresses.length > 0 ? (
+                <div className="space-y-2">
+                  <select
+                    id="address-select"
+                    value={selectedAddressId}
+                    onChange={(e) => handleAddressSelect(e.target.value)}
+                    required
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="">{t('task.selectAddress')}</option>
+                    {addresses.map((addr) => (
+                      <option key={addr.id} value={addr.id}>
+                        {addr.label} {addr.is_default ? `(${t('profile.default')})` : ''} - {addr.address_line1}, {addr.city}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="p-0 h-auto"
+                    onClick={() => navigate('/dashboard/profile?tab=addresses')}
+                  >
+                    {t('task.manageAddresses')}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    id="address"
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) => handleChange('address', e.target.value)}
+                    required
+                    placeholder={t('task.addressPlaceholder')}
+                  />
+                  {addresses.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="p-0 h-auto"
+                      onClick={() => {
+                        setAddressMode('saved');
+                        if (addresses.length > 0) {
+                          setSelectedAddressId(addresses[0].id);
+                          populateAddressFields(addresses[0]);
+                        }
+                      }}
+                    >
+                      {t('task.useSavedAddress')}
+                    </Button>
+                  )}
                 </div>
               )}
-            </>
-          )}
-        </div>
+            </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="city">{t('task.city')}</label>
-            <input
-              id="city"
-              type="text"
-              value={formData.city}
-              onChange={(e) => handleChange('city', e.target.value)}
-              required
-              disabled={addressMode === 'saved' && selectedAddressId}
-            />
-          </div>
+            {/* City and District */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="city">{t('task.city')}</Label>
+                <Input
+                  id="city"
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) => handleChange('city', e.target.value)}
+                  required
+                  disabled={addressMode === 'saved' && selectedAddressId}
+                />
+              </div>
 
-          {formData.district && (
-            <div className="form-group">
-              <label htmlFor="district">{t('task.district')}</label>
-              <input
-                id="district"
-                type="text"
-                value={formData.district}
-                onChange={(e) => handleChange('district', e.target.value)}
-                disabled={addressMode === 'saved' && selectedAddressId}
+              {formData.district && (
+                <div className="space-y-2">
+                  <Label htmlFor="district">{t('task.district')}</Label>
+                  <Input
+                    id="district"
+                    type="text"
+                    value={formData.district}
+                    onChange={(e) => handleChange('district', e.target.value)}
+                    disabled={addressMode === 'saved' && selectedAddressId}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Schedule */}
+            <div className="space-y-2">
+              <Label htmlFor="starts_at" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                {t('task.schedule')}
+              </Label>
+              <Input
+                id="starts_at"
+                type="datetime-local"
+                value={formData.starts_at}
+                onChange={(e) => handleChange('starts_at', e.target.value)}
+                required
               />
             </div>
-          )}
-        </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="starts_at">{t('task.schedule')}</label>
-            <input
-              id="starts_at"
-              type="datetime-local"
-              value={formData.starts_at}
-              onChange={(e) => handleChange('starts_at', e.target.value)}
-              required
-            />
-          </div>
-        </div>
-
-        <div className="form-actions">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="secondary-btn"
-            disabled={loading}
-          >
-            {t('task.cancel')}
-          </button>
-          <button type="submit" disabled={loading} className="primary-btn">
-            {loading ? 'جاري الإنشاء...' : t('task.postTask')}
-          </button>
-        </div>
-      </form>
+            {/* Form Actions */}
+            <div className="flex justify-end gap-4 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/dashboard')}
+                disabled={loading}
+              >
+                {t('task.cancel')}
+              </Button>
+              <Button type="submit" disabled={loading} className="bg-teal-600 hover:bg-teal-700">
+                {loading ? (t('task.creating') || 'Creating...') : t('task.postTask')}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

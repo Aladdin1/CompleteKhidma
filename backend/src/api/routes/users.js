@@ -1,5 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import { authenticate } from '../../middleware/auth.js';
 import pool from '../../config/database.js';
 import crypto from 'crypto';
@@ -194,15 +195,30 @@ router.post('/me/become-tasker', authenticate, async (req, res, next) => {
 
         await client.query('COMMIT');
 
-        // Update user in response
+        // Fetch updated user
         const updatedUserResult = await pool.query(
           'SELECT id, role, phone, email, full_name, locale, created_at FROM users WHERE id = $1',
           [userId]
         );
+        const updatedUser = updatedUserResult.rows[0];
+
+        // Issue new tokens with updated role so token matches DB (avoids role mismatch)
+        const accessToken = jwt.sign(
+          { userId: updatedUser.id, role: updatedUser.role },
+          process.env.JWT_SECRET,
+          { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+        );
+        const refreshToken = jwt.sign(
+          { userId: updatedUser.id, type: 'refresh' },
+          process.env.JWT_SECRET,
+          { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' }
+        );
 
         res.json({
-          message: 'Successfully became a tasker. Please logout and login again to access tasker features.',
-          user: updatedUserResult.rows[0]
+          message: 'Successfully became a tasker.',
+          user: updatedUser,
+          access_token: accessToken,
+          refresh_token: refreshToken
         });
       } catch (dbError) {
         await client.query('ROLLBACK');
