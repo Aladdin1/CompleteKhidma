@@ -83,6 +83,47 @@ export const authAPI = {
     });
     return response.data;
   },
+
+  // OAuth helpers - check configuration first, then redirect
+  initiateGoogleOAuth: async (redirectUri = null) => {
+    // First check if OAuth is configured
+    try {
+      const checkResponse = await api.get('/auth/oauth/google/check');
+      // If check passes, proceed with redirect
+    } catch (err) {
+      // If OAuth is not configured, throw error to show in UI
+      if (err.response?.status === 500 || err.response?.data?.error?.code === 'OAUTH_NOT_CONFIGURED') {
+        throw new Error(err.response?.data?.error?.message || 'Google OAuth is not configured');
+      }
+    }
+    
+    const params = new URLSearchParams();
+    if (redirectUri) {
+      params.append('redirect_uri', redirectUri);
+    }
+    const url = `${API_BASE_URL}/auth/oauth/google${params.toString() ? `?${params.toString()}` : ''}`;
+    window.location.href = url;
+  },
+
+  initiateFacebookOAuth: async (redirectUri = null) => {
+    // First check if OAuth is configured
+    try {
+      const checkResponse = await api.get('/auth/oauth/facebook/check');
+      // If check passes, proceed with redirect
+    } catch (err) {
+      // If OAuth is not configured, throw error to show in UI
+      if (err.response?.status === 500 || err.response?.data?.error?.code === 'OAUTH_NOT_CONFIGURED') {
+        throw new Error(err.response?.data?.error?.message || 'Facebook OAuth is not configured');
+      }
+    }
+    
+    const params = new URLSearchParams();
+    if (redirectUri) {
+      params.append('redirect_uri', redirectUri);
+    }
+    const url = `${API_BASE_URL}/auth/oauth/facebook${params.toString() ? `?${params.toString()}` : ''}`;
+    window.location.href = url;
+  },
 };
 
 // User API

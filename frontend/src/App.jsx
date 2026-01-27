@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 import LoginPage from './pages/LoginPage';
+import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import LandingPage from './pages/LandingPage';
 import BrowseServices from './pages/BrowseServices';
 import ServiceDetails from './pages/ServiceDetails';
@@ -57,6 +58,7 @@ function App() {
         <Route path="/become-tasker" element={<BecomeTaskerPublic />} />
         <Route path="/book/:serviceId" element={<BookTask />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<OAuthCallbackPage />} />
 
         {/* Authenticated Routes */}
         <Route
