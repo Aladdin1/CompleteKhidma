@@ -5,7 +5,7 @@ import { ArrowLeft, Star, MapPin, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { taskAPI } from '@/services/api';
+import { taskAPI, bidAPI } from '@/services/api';
 import useAuthStore from '@/store/authStore';
 import ReviewForm from '@/components/ReviewForm';
 import { services } from '@/data/services';
@@ -17,11 +17,16 @@ function TaskDetailPage() {
   const { user } = useAuthStore();
   const [task, setTask] = useState(null);
   const [candidates, setCandidates] = useState([]);
+  const [availableTaskers, setAvailableTaskers] = useState([]);
+  const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCandidates, setShowCandidates] = useState(false);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [bidsLoading, setBidsLoading] = useState(false);
   const [canAccept, setCanAccept] = useState(false);
+  const [quoteForm, setQuoteForm] = useState({ amount: '', message: '' });
+  const [submittingQuote, setSubmittingQuote] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({
     description: '',
@@ -56,14 +61,98 @@ function TaskDetailPage() {
         setCanAccept(true);
       }
 
-      // Load candidates if task is posted (for clients to see)
-      if ((taskData.state === 'posted' || taskData.state === 'matching') && taskData.client_id === user?.id) {
-        await loadCandidates(taskData);
+      // Load bids if task is posted and client owns it (show any pending quotes)
+      if ((taskData.state === 'posted' || taskData.state === 'matching') && taskData.client_id === user?.id && !taskData.assigned_tasker) {
+        loadBids();
       }
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to load task');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBids = async () => {
+    if (!taskId || !user) return;
+    try {
+      setBidsLoading(true);
+      const data = await taskAPI.getBids(taskId);
+      setBids(data.bids || []);
+    } catch (err) {
+      console.error('Failed to load bids:', err);
+    } finally {
+      setBidsLoading(false);
+    }
+  };
+
+  const loadAvailableTaskers = async () => {
+    if (!taskId || !user) return;
+    try {
+      setCandidatesLoading(true);
+      const data = await taskAPI.getAvailableTaskers(taskId);
+      setAvailableTaskers(data.items || []);
+      setShowCandidates(true);
+      await loadBids();
+    } catch (err) {
+      console.error('Failed to load available taskers:', err);
+      setError(err.response?.data?.error?.message || 'Failed to load available taskers');
+      setAvailableTaskers([]);
+    } finally {
+      setCandidatesLoading(false);
+    }
+  };
+
+  const handleRequestQuote = async (taskerId) => {
+    try {
+      await taskAPI.requestQuote(taskId, taskerId);
+      setError('');
+      alert(i18n.language === 'ar' ? 'تم طلب السعر من هذا العامل. سيتم إشعاره لتقديم تكلفته.' : 'Quote requested. Tasker will be notified to propose their cost.');
+      await loadBids();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to request quote');
+    }
+  };
+
+  const handleAcceptBid = async (bidId) => {
+    if (!window.confirm(i18n.language === 'ar' ? 'قبول هذا العرض؟' : 'Accept this quote?')) return;
+    try {
+      await bidAPI.accept(bidId);
+      setError('');
+      alert(i18n.language === 'ar' ? 'تم قبول العرض. في انتظار تأكيد العامل.' : 'Quote accepted. Waiting for tasker to confirm.');
+      await loadTask();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to accept quote');
+    }
+  };
+
+  const handleDeclineBid = async (bidId) => {
+    if (!window.confirm(i18n.language === 'ar' ? 'رفض هذا العرض؟' : 'Decline this quote?')) return;
+    try {
+      await bidAPI.decline(bidId);
+      await loadBids();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to decline quote');
+    }
+  };
+
+  const handleSubmitQuote = async (e) => {
+    e.preventDefault();
+    const amount = parseInt(quoteForm.amount, 10);
+    if (!amount || amount <= 0) {
+      setError(i18n.language === 'ar' ? 'أدخل المبلغ' : 'Enter amount');
+      return;
+    }
+    try {
+      setSubmittingQuote(true);
+      await bidAPI.submit(taskId, { amount, message: quoteForm.message || undefined });
+      setError('');
+      setQuoteForm({ amount: '', message: '' });
+      alert(i18n.language === 'ar' ? 'تم إرسال السعر للعميل.' : 'Quote sent to client.');
+      await loadTask();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to submit quote');
+    } finally {
+      setSubmittingQuote(false);
     }
   };
 
@@ -417,129 +506,173 @@ function TaskDetailPage() {
           </section>
         )}
 
-        {/* Available Taskers — same layout as /services/cleaning */}
+        {/* Bid-based: Quotes for this task + Choose taskers & request quote */}
         {isTaskOwner && (task.state === 'posted' || task.state === 'matching') && !task.assigned_tasker && (
           <section className="py-12 bg-gray-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  {i18n.language === 'ar' ? 'المهماتون المتاحون' : 'Available Taskers'}
-                </h2>
-                {showCandidates && !candidatesLoading && (
-                  <span className="text-gray-600">{candidates.length} {i18n.language === 'ar' ? 'مهمات' : 'Taskers'}</span>
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                {i18n.language === 'ar' ? 'العروض والطلبات' : 'Quotes & choose tasker'}
+              </h2>
+
+              {/* Quotes received */}
+              {bids.length > 0 && (
+                <div className="mb-8">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                    {i18n.language === 'ar' ? 'العروض الواردة' : 'Quotes received'}
+                  </h3>
+                  {bidsLoading ? (
+                    <div className="animate-pulse h-24 bg-gray-100 rounded-lg" />
+                  ) : (
+                    <div className="space-y-4">
+                      {bids.map((b) => (
+                        <Card key={b.id} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                          <div>
+                            <div className="font-medium text-gray-900">{b.tasker_name}</div>
+                            <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                              <Star className="text-yellow-500 fill-yellow-500" size={14} />
+                              {b.rating?.toFixed(1) || '—'} ({b.review_count ?? 0} {i18n.language === 'ar' ? 'تقييم' : 'reviews'})
+                            </div>
+                            {b.status === 'requested' && (
+                              <p className="text-amber-700 text-sm mt-2">
+                                {i18n.language === 'ar' ? 'في انتظار العامل لتقديم السعر' : 'Waiting for tasker to propose cost'}
+                              </p>
+                            )}
+                            {b.status === 'pending' && b.amount != null && (
+                              <p className="text-gray-800 font-semibold mt-2">
+                                {b.amount} {b.currency || 'EGP'}
+                                {b.message && <span className="block text-sm font-normal text-gray-600 mt-1">{b.message}</span>}
+                              </p>
+                            )}
+                          </div>
+                          {b.status === 'pending' && (
+                            <div className="flex gap-2">
+                              <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={() => handleAcceptBid(b.id)}>
+                                {i18n.language === 'ar' ? 'قبول' : 'Accept'}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => handleDeclineBid(b.id)}>
+                                {i18n.language === 'ar' ? 'رفض' : 'Decline'}
+                              </Button>
+                            </div>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Choose taskers & request quote */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  {i18n.language === 'ar' ? 'اختر عاملاً واطلب سعره' : 'Choose a tasker and request a quote'}
+                </h3>
+                {!showCandidates && !candidatesLoading && (
+                  <div className="flex justify-center py-8">
+                    <Button onClick={() => loadAvailableTaskers()} className="bg-teal-600 hover:bg-teal-700">
+                      {i18n.language === 'ar' ? 'عرض العمال المتاحين' : 'Load available taskers'}
+                    </Button>
+                  </div>
                 )}
-              </div>
-              {!showCandidates && !candidatesLoading && (
-                <div className="flex justify-center py-12">
-                  <Button onClick={() => loadCandidates()} className="bg-teal-600 hover:bg-teal-700">
-                    {i18n.language === 'ar' ? 'عرض العمال المتاحين' : 'Load available taskers'}
-                  </Button>
-                </div>
-              )}
-              {candidatesLoading && (
-                <div className="space-y-4">
-                  {[1, 2, 3].map((i) => (
-                    <Card key={i} className="p-6 animate-pulse">
-                      <div className="flex flex-col md:flex-row gap-6">
-                        <div className="w-24 h-24 rounded-full bg-gray-200" />
-                        <div className="flex-1 space-y-3">
-                          <div className="h-6 w-48 bg-gray-200 rounded" />
-                          <div className="h-4 w-64 bg-gray-100 rounded" />
-                          <div className="h-10 w-32 bg-gray-200 rounded" />
+                {candidatesLoading && (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <Card key={i} className="p-6 animate-pulse">
+                        <div className="flex gap-6">
+                          <div className="w-16 h-16 rounded-full bg-gray-200" />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-5 w-32 bg-gray-200 rounded" />
+                            <div className="h-4 w-48 bg-gray-100 rounded" />
+                          </div>
                         </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-              {showCandidates && !candidatesLoading && candidates.length === 0 && (
-                <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-                  <p className="text-lg text-gray-600 mb-2">
-                    {i18n.language === 'ar' ? 'لا يوجد مهماتون متاحون حالياً' : 'No taskers available yet.'}
-                  </p>
-                  <Button onClick={() => loadCandidates()} variant="outline" className="mt-4">
-                    {i18n.language === 'ar' ? 'تحديث' : 'Refresh'}
-                  </Button>
-                </div>
-              )}
-              {showCandidates && !candidatesLoading && candidates.length > 0 && (
-                <div className="space-y-4">
-                  {candidates.map((c, idx) => {
-                    const tr = c.tasker;
-                    const name = tr?.full_name || 'Tasker';
-                    const rating = tr?.rating?.average != null ? Number(tr.rating.average) : null;
-                    const count = tr?.rating?.count ?? 0;
-                    const price = c.pricing?.estimate
-                      ? `${c.pricing.estimate.min_total?.amount}–${c.pricing.estimate.max_total?.amount} ${c.pricing.estimate.min_total?.currency}`
-                      : averagePrice;
-                    return (
-                      <Card key={tr?.user_id || idx} className="p-6 hover:shadow-lg transition-shadow">
-                        <div className="flex flex-col md:flex-row gap-6">
-                          <Avatar className="w-24 h-24">
-                            <AvatarFallback>
-                              {name.split(/\s+/).map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-3">
+                      </Card>
+                    ))}
+                  </div>
+                )}
+                {showCandidates && !candidatesLoading && availableTaskers.length === 0 && (
+                  <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                    <p className="text-gray-600 mb-4">{i18n.language === 'ar' ? 'لا يوجد عاملون متاحون لهذه الفئة/المكان حالياً' : 'No taskers available for this category or area.'}</p>
+                    <Button onClick={() => loadAvailableTaskers()} variant="outline">{i18n.language === 'ar' ? 'تحديث' : 'Refresh'}</Button>
+                  </div>
+                )}
+                {showCandidates && !candidatesLoading && availableTaskers.length > 0 && (
+                  <div className="space-y-4">
+                    {availableTaskers.map((t) => {
+                      const alreadyRequested = bids.some((b) => b.tasker_id === t.id && (b.status === 'requested' || b.status === 'pending'));
+                      return (
+                        <Card key={t.id} className="p-6 hover:shadow-lg transition-shadow">
+                          <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+                            <div className="flex items-center gap-4">
+                              <Avatar className="w-14 h-14">
+                                <AvatarFallback>{(t.name || t.full_name || 'T').slice(0, 2).toUpperCase()}</AvatarFallback>
+                              </Avatar>
                               <div>
-                                <div className="flex flex-wrap items-center gap-2 mb-2">
-                                  <h3 className="text-xl font-bold text-gray-900">{name}</h3>
-                                  {tr?.verification?.is_verified && (
-                                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-teal-100 text-teal-800">✓ {i18n.language === 'ar' ? 'موثق' : 'Verified'}</span>
-                                  )}
-                                  {c.rank != null && (
-                                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-800">#{c.rank}</span>
-                                  )}
+                                <h3 className="font-bold text-gray-900">{t.name || t.full_name || 'Tasker'}</h3>
+                                <div className="flex items-center gap-1 text-sm text-gray-600">
+                                  <Star className="text-yellow-500 fill-yellow-500" size={14} />
+                                  {(t.rating ?? 0).toFixed(1)} ({t.reviews ?? 0} {i18n.language === 'ar' ? 'تقييم' : 'reviews'})
                                 </div>
-                                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                                  <span className="flex items-center gap-1">
-                                    <Star className="text-yellow-500 fill-yellow-500" size={16} />
-                                    <span className="font-semibold">{rating != null ? rating.toFixed(1) : '—'}</span>
-                                    <span>({count} {i18n.language === 'ar' ? 'تقييم' : 'reviews'})</span>
-                                  </span>
-                                  {tr?.stats && (
-                                    <span className="flex items-center gap-1">
-                                      <CheckCircle className="text-green-600" size={16} />
-                                      {i18n.language === 'ar' ? 'قبول' : 'Accept'} {(tr.stats.acceptance_rate * 100).toFixed(0)}% · {i18n.language === 'ar' ? 'إكمال' : 'Complete'} {(tr.stats.completion_rate * 100).toFixed(0)}%
-                                    </span>
-                                  )}
-                                  {c.distance_km != null && (
-                                    <span className="flex items-center gap-1">
-                                      <MapPin className="text-gray-400" size={16} />
-                                      {c.distance_km} {i18n.language === 'ar' ? 'كم' : 'km'}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="text-right mt-4 md:mt-0">
-                                <div className="text-2xl font-bold text-gray-900">{price || '—'}</div>
                               </div>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                            <div className="flex gap-2">
                               <Button
-                                className="flex-1 bg-teal-600 hover:bg-teal-700"
-                                onClick={() => handleSelectTasker(tr?.user_id)}
+                                size="sm"
+                                className="bg-teal-600 hover:bg-teal-700"
+                                onClick={() => handleRequestQuote(t.id)}
+                                disabled={alreadyRequested}
                               >
-                                {i18n.language === 'ar' ? 'اختر هذا العامل' : 'Select this tasker'}
+                                {alreadyRequested ? (i18n.language === 'ar' ? 'تم الطلب' : 'Quote requested') : (i18n.language === 'ar' ? 'طلب السعر' : 'Request quote')}
                               </Button>
-                              <Button variant="outline" className="flex-1" asChild>
-                                <Link
-                                  to={`/dashboard/taskers/${tr?.user_id}`}
-                                  state={{ from: `/dashboard/tasks/${taskId}` }}
-                                >
-                                  {i18n.language === 'ar' ? 'عرض الملف الشخصي' : 'View profile'}
+                              <Button variant="outline" size="sm" asChild>
+                                <Link to={`/dashboard/taskers/${t.id}`} state={{ from: `/dashboard/tasks/${taskId}` }}>
+                                  {i18n.language === 'ar' ? 'الملف' : 'Profile'}
                                 </Link>
                               </Button>
                             </div>
                           </div>
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
+          </section>
+        )}
+
+        {/* Tasker: Submit quote form when client requested a quote */}
+        {user?.role === 'tasker' && task?.my_bid?.status === 'requested' && (
+          <section className="py-8 bg-amber-50 border border-amber-200 rounded-xl max-w-2xl mx-auto px-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {i18n.language === 'ar' ? 'العميل طلب منك تقديم السعر' : 'Client requested a quote from you'}
+            </h3>
+            <p className="text-gray-700 text-sm mb-4">
+              {i18n.language === 'ar' ? 'أدخل التكلفة المقترحة واختيارياً رسالة، وسيتم إرسالها للعميل لقبولها أو رفضها.' : 'Enter your proposed cost and optionally a message. It will be sent to the client to accept or decline.'}
+            </p>
+            <form onSubmit={handleSubmitQuote} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{i18n.language === 'ar' ? 'المبلغ' : 'Amount'} (EGP)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={quoteForm.amount}
+                  onChange={(e) => setQuoteForm((f) => ({ ...f, amount: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{i18n.language === 'ar' ? 'رسالة (اختياري)' : 'Message (optional)'}</label>
+                <textarea
+                  value={quoteForm.message}
+                  onChange={(e) => setQuoteForm((f) => ({ ...f, message: e.target.value }))}
+                  rows={2}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <Button type="submit" disabled={submittingQuote} className="bg-teal-600 hover:bg-teal-700">
+                {submittingQuote ? (i18n.language === 'ar' ? 'جاري الإرسال...' : 'Sending...') : (i18n.language === 'ar' ? 'إرسال السعر للعميل' : 'Send quote to client')}
+              </Button>
+            </form>
           </section>
         )}
 

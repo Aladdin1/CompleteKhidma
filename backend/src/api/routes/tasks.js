@@ -251,16 +251,27 @@ router.get('/:task_id', authenticate, optionalAuth, async (req, res, next) => {
     
     let isTaskerAuthorized = false;
     if (req.user?.role === 'tasker' && userId) {
-      // Check if task is available for viewing (posted/matching) OR tasker has a booking
+      // Check if task is available for viewing (posted/matching) OR tasker has a booking OR tasker has a bid (requested/pending)
       if (task.state === 'posted' || task.state === 'matching') {
         isTaskerAuthorized = true;
       } else {
-        // Check if tasker has a booking for this task
         const bookingResult = await pool.query(
           'SELECT id FROM bookings WHERE task_id = $1 AND tasker_id = $2 LIMIT 1',
           [task_id, userId]
         );
-        isTaskerAuthorized = bookingResult.rows.length > 0;
+        if (bookingResult.rows.length > 0) {
+          isTaskerAuthorized = true;
+        } else {
+          try {
+            const bidResult = await pool.query(
+              "SELECT id FROM task_bids WHERE task_id = $1 AND tasker_id = $2 AND status IN ('requested','pending') LIMIT 1",
+              [task_id, userId]
+            );
+            isTaskerAuthorized = bidResult.rows.length > 0;
+          } catch (_) {
+            isTaskerAuthorized = false;
+          }
+        }
       }
     }
     
@@ -416,6 +427,31 @@ router.get('/:task_id', authenticate, optionalAuth, async (req, res, next) => {
     // Add assigned tasker if available
     if (assignedTasker) {
       response.assigned_tasker = assignedTasker;
+    }
+
+    // If tasker has a requested/pending bid on this task, include my_bid so they can submit quote
+    if (req.user?.role === 'tasker' && userId) {
+      try {
+        const bidRes = await pool.query(
+          `SELECT id, amount, currency, minimum_minutes, message, status, created_at
+           FROM task_bids WHERE task_id = $1 AND tasker_id = $2 AND status IN ('requested','pending') LIMIT 1`,
+          [task_id, userId]
+        );
+        if (bidRes.rows.length > 0) {
+          const row = bidRes.rows[0];
+          response.my_bid = {
+            id: row.id,
+            amount: row.amount,
+            currency: row.currency,
+            minimum_minutes: row.minimum_minutes,
+            message: row.message,
+            status: row.status,
+            created_at: row.created_at,
+          };
+        }
+      } catch (bidErr) {
+        if (!bidErr.message?.includes('task_bids')) console.warn('task_bids lookup:', bidErr.message);
+      }
     }
 
     res.json(response);
@@ -596,6 +632,188 @@ router.post('/:task_id/post', authenticate, requireRole('client'), async (req, r
     } finally {
       client.release();
     }
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/tasks/:task_id/available-taskers
+ * List taskers available for this task (by category, city). For client to choose and request quote.
+ */
+router.get('/:task_id/available-taskers', authenticate, requireRole('client'), async (req, res, next) => {
+  try {
+    const { task_id } = req.params;
+    const userId = req.user.id;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+
+    const taskResult = await pool.query(
+      'SELECT * FROM tasks WHERE id = $1 AND client_id = $2',
+      [task_id, userId]
+    );
+    if (taskResult.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } });
+    }
+    const task = taskResult.rows[0];
+    if (!['draft', 'posted', 'matching'].includes(task.state)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_STATE', message: 'Task must be draft, posted, or matching to see available taskers' }
+      });
+    }
+
+    const slug = (task.category || '').trim().toLowerCase();
+    if (!slug) {
+      return res.json({ items: [] });
+    }
+
+    const completedResult = await pool.query(
+      `SELECT b.tasker_id, COUNT(*)::int AS completed_count
+       FROM bookings b WHERE b.status = 'completed' GROUP BY b.tasker_id`
+    );
+    const completedMap = Object.fromEntries(completedResult.rows.map((r) => [r.tasker_id, r.completed_count]));
+
+    const taskersResult = await pool.query(
+      `SELECT u.id AS user_id, u.full_name,
+              tp.rating_avg, tp.rating_count, tp.status AS tasker_status
+       FROM users u
+       JOIN tasker_profiles tp ON tp.user_id = u.id
+       JOIN tasker_categories tc ON tc.tasker_id = u.id AND LOWER(TRIM(tc.category)) = $1
+       WHERE u.role = 'tasker'
+         AND tp.status IN ('applied', 'verified', 'active')
+       ORDER BY tp.rating_avg DESC NULLS LAST, tp.rating_count DESC
+       LIMIT $2`,
+      [slug, limit]
+    );
+
+    const items = taskersResult.rows.map((row) => ({
+      id: row.user_id,
+      user_id: row.user_id,
+      name: row.full_name || 'Tasker',
+      full_name: row.full_name || 'Tasker',
+      rating: parseFloat(row.rating_avg) || 0,
+      reviews: parseInt(row.rating_count, 10) || 0,
+      completedTasks: completedMap[row.user_id] || 0,
+    }));
+
+    res.json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/tasks/:task_id/request-quote
+ * Client requests a quote from a specific tasker. Creates task_bid with status 'requested'.
+ */
+router.post('/:task_id/request-quote', authenticate, requireRole('client'), async (req, res, next) => {
+  try {
+    const { task_id } = req.params;
+    const userId = req.user.id;
+    const { tasker_id } = z.object({ tasker_id: z.string().uuid() }).parse(req.body);
+
+    const taskResult = await pool.query(
+      'SELECT * FROM tasks WHERE id = $1 AND client_id = $2',
+      [task_id, userId]
+    );
+    if (taskResult.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } });
+    }
+    const task = taskResult.rows[0];
+    if (!['draft', 'posted', 'matching'].includes(task.state)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_STATE', message: 'Task must be draft, posted, or matching to request a quote' }
+      });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const existing = await client.query(
+        `SELECT id, status FROM task_bids WHERE task_id = $1 AND tasker_id = $2`,
+        [task_id, tasker_id]
+      );
+      if (existing.rows.length > 0) {
+        const row = existing.rows[0];
+        if (row.status === 'requested') {
+          await client.query('COMMIT');
+          return res.json({ bid_id: row.id, status: 'requested', message: 'Quote already requested from this tasker' });
+        }
+        if (['pending', 'accepted'].includes(row.status)) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({
+            error: { code: 'BID_EXISTS', message: 'This tasker already has a pending or accepted bid' }
+          });
+        }
+      }
+      const ins = await client.query(
+        `INSERT INTO task_bids (id, task_id, tasker_id, status, currency)
+         VALUES (uuid_generate_v4(), $1, $2, 'requested', $3)
+         ON CONFLICT (task_id, tasker_id) DO UPDATE SET status = 'requested', updated_at = now() RETURNING id`,
+        [task_id, tasker_id, task.currency || 'EGP']
+      );
+      const bidId = ins.rows[0]?.id;
+      await client.query('COMMIT');
+      res.status(201).json({ bid_id: bidId, status: 'requested', message: 'Quote requested. Tasker will be notified to propose their cost.' });
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: error.errors?.[0]?.message || 'tasker_id required (UUID)' } });
+    }
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/tasks/:task_id/bids
+ * List bids (and quote requests) for this task. Client only.
+ */
+router.get('/:task_id/bids', authenticate, requireRole('client'), async (req, res, next) => {
+  try {
+    const { task_id } = req.params;
+    const userId = req.user.id;
+
+    const taskResult = await pool.query(
+      'SELECT * FROM tasks WHERE id = $1 AND client_id = $2',
+      [task_id, userId]
+    );
+    if (taskResult.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } });
+    }
+
+    const bidsResult = await pool.query(
+      `SELECT b.id, b.task_id, b.tasker_id, b.amount, b.currency, b.minimum_minutes, b.message, b.can_start_at, b.status, b.created_at, b.updated_at,
+              u.full_name AS tasker_name, tp.rating_avg, tp.rating_count
+       FROM task_bids b
+       JOIN users u ON b.tasker_id = u.id
+       LEFT JOIN tasker_profiles tp ON b.tasker_id = tp.user_id
+       WHERE b.task_id = $1 AND b.status IN ('requested', 'pending', 'accepted')
+       ORDER BY b.status = 'pending' DESC, b.amount ASC NULLS LAST, b.created_at DESC`,
+      [task_id]
+    );
+
+    const bids = bidsResult.rows.map((r) => ({
+      id: r.id,
+      task_id: r.task_id,
+      tasker_id: r.tasker_id,
+      tasker_name: r.tasker_name || 'Tasker',
+      amount: r.amount,
+      currency: r.currency,
+      minimum_minutes: r.minimum_minutes,
+      message: r.message,
+      can_start_at: r.can_start_at,
+      status: r.status,
+      rating: parseFloat(r.rating_avg) || 0,
+      review_count: parseInt(r.rating_count, 10) || 0,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    }));
+
+    res.json({ bids });
   } catch (error) {
     next(error);
   }

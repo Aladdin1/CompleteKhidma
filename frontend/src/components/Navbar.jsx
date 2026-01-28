@@ -98,6 +98,9 @@ const Navbar = ({ variant = 'auto' }) => {
                     <Link to="/dashboard/tasker/tasks/offered" className={`text-sm ${linkClass}`}>
                       {i18n.language === 'ar' ? 'عروضي' : 'My Offers'}
                     </Link>
+                    <Link to="/dashboard/tasker/quote-requests" className={`text-sm ${linkClass}`}>
+                      {i18n.language === 'ar' ? 'طلبات السعر' : 'Quote requests'}
+                    </Link>
                     <Link to="/dashboard/messages" className={`relative text-sm ${linkClass}`}>
                       {t('messages.title')}
                       {unreadMessageCount > 0 && (
@@ -233,6 +236,9 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                     <Link to="/dashboard/tasker/tasks/offered" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {i18n.language === 'ar' ? 'عروضي' : 'My Offers'}
+                    </Link>
+                    <Link to="/dashboard/tasker/quote-requests" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {i18n.language === 'ar' ? 'طلبات السعر' : 'Quote requests'}
                     </Link>
                     <Link to="/dashboard/messages" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('messages.title')}

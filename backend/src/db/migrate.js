@@ -19,7 +19,10 @@ async function migrate() {
       '003_user_addresses.sql', 
       '004_bookings_arrived_at.sql', 
       '005_fix_reviews_unique_constraint.sql',
-      '006_fix_bookings_unique_constraint.sql'
+      '006_fix_bookings_unique_constraint.sql',
+      '007_user_payment_methods.sql',
+      '008_oauth_support.sql',
+      '009_task_bids.sql'
     ];
     
     for (const migrationFile of migrations) {

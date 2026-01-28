@@ -690,6 +690,61 @@ router.get('/me/tasks/available', authenticate, requireRole('tasker'), paginatio
 });
 
 /**
+ * GET /api/v1/taskers/me/quote-requests
+ * Tasks where the client requested a quote from this tasker (task_bids status 'requested').
+ * Tasker uses this to see "Client requested a quote — propose your cost" and submit bid.
+ */
+router.get('/me/quote-requests', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { limit, cursor } = req.pagination;
+
+    let query = `
+      SELECT t.id, t.client_id, t.category, t.subcategory, t.description, t.address, t.city, t.district, t.lat, t.lng,
+             t.starts_at, t.flexibility_minutes, t.currency, t.state, t.created_at,
+             b.id AS bid_id, b.status AS bid_status
+      FROM task_bids b
+      JOIN tasks t ON b.task_id = t.id
+      WHERE b.tasker_id = $1 AND b.status = 'requested'
+    `;
+    const params = [userId];
+    let paramIndex = 2;
+    if (cursor) {
+      query += ` AND b.created_at < (SELECT created_at FROM task_bids WHERE id = $${paramIndex})`;
+      params.push(cursor);
+      paramIndex++;
+    }
+    query += ` ORDER BY b.created_at DESC LIMIT $${paramIndex}`;
+    params.push(limit + 1);
+
+    const result = await pool.query(query, params);
+    const rows = result.rows.slice(0, limit);
+    const nextCursor = result.rows.length > limit ? rows[rows.length - 1]?.bid_id : null;
+
+    const items = rows.map((r) => ({
+      bid_id: r.bid_id,
+      bid_status: r.bid_status,
+      task: {
+        id: r.id,
+        client_id: r.client_id,
+        category: r.category,
+        subcategory: r.subcategory,
+        description: r.description,
+        location: { address: r.address, city: r.city, point: { lat: r.lat, lng: r.lng } },
+        schedule: { starts_at: r.starts_at, flexibility_minutes: r.flexibility_minutes },
+        currency: r.currency,
+        state: r.state,
+        created_at: r.created_at,
+      },
+    }));
+
+    res.json(formatPaginatedResponse(items, nextCursor));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/v1/taskers/me/tasks/offered
  * Get tasks specifically offered to this tasker
  */

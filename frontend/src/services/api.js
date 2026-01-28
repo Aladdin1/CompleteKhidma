@@ -240,6 +240,21 @@ export const taskAPI = {
     return response.data;
   },
 
+  getAvailableTaskers: async (taskId, params = {}) => {
+    const response = await api.get(`/tasks/${taskId}/available-taskers`, { params });
+    return response.data;
+  },
+
+  requestQuote: async (taskId, taskerId) => {
+    const response = await api.post(`/tasks/${taskId}/request-quote`, { tasker_id: taskerId });
+    return response.data;
+  },
+
+  getBids: async (taskId) => {
+    const response = await api.get(`/tasks/${taskId}/bids`);
+    return response.data;
+  },
+
   selectTasker: async (taskId, taskerId, proposedRate = null, minimumMinutes = null) => {
     const idempotencyKey = crypto.randomUUID();
     const response = await api.post('/bookings', {
@@ -297,6 +312,11 @@ export const taskerAPI = {
 
   getOfferedTasks: async (params = {}) => {
     const response = await api.get('/taskers/me/tasks/offered', { params });
+    return response.data;
+  },
+
+  getQuoteRequests: async (params = {}) => {
+    const response = await api.get('/taskers/me/quote-requests', { params });
     return response.data;
   },
 
@@ -367,6 +387,37 @@ export const bookingAPI = {
 
   cancel: async (bookingId, reason) => {
     const response = await api.post(`/bookings/${bookingId}/cancel`, { reason });
+    return response.data;
+  },
+};
+
+// Bids API (tasker submits quote; client accepts/declines)
+export const bidAPI = {
+  submit: async (taskId, { amount, currency, minimum_minutes, message, can_start_at }) => {
+    const idempotencyKey = crypto.randomUUID();
+    const response = await api.post('/bids', {
+      task_id: taskId,
+      amount,
+      currency: currency || 'EGP',
+      minimum_minutes: minimum_minutes || 60,
+      message: message || undefined,
+      can_start_at: can_start_at || undefined,
+    }, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
+    return response.data;
+  },
+
+  accept: async (bidId) => {
+    const idempotencyKey = crypto.randomUUID();
+    const response = await api.post(`/bids/${bidId}/accept`, {}, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
+    return response.data;
+  },
+
+  decline: async (bidId) => {
+    const response = await api.post(`/bids/${bidId}/decline`);
     return response.data;
   },
 };

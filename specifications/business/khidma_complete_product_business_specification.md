@@ -100,6 +100,16 @@ To become the default operating system for local, on-demand human labor.
 - **US-C-016**: As a client, I want the system to automatically match me with the best tasker if I don't choose, so that my task gets filled quickly.
 - **US-C-085**: As a client, I want to select a tasker for my task and wait for their acceptance, so that I know the tasker has confirmed they can complete the work.
 
+#### Bid-Based Tasks & Quotes
+- **US-C-093**: As a client, I want to see which taskers are available for my task (by category, location, schedule), so that I can choose who to ask for a quote.
+- **US-C-094**: As a client, I want to choose one or more taskers from the available list and request a quote from them, so that they propose their cost and I can compare options.
+- **US-C-095**: As a client, I want to see all quotes I have received for my task (including “waiting for tasker to propose cost” and “pending – amount submitted”), so that I can decide which option to accept.
+- **US-C-096**: As a client, I want to see each quote with the tasker’s proposed amount, rating, and reviews, so that I can choose the best option for me based on price and reputation.
+- **US-C-097**: As a client, I want to accept a tasker’s quote, so that a booking is created and the tasker is notified to confirm.
+- **US-C-098**: As a client, I want to decline a tasker’s quote, so that I can request a quote from someone else or open the task to more taskers.
+- **US-C-099**: As a client, I want to be notified when a tasker I asked for a quote submits their cost, so that I can review and accept or decline.
+- **US-C-100**: As a client, I want the price for my task to be set by the tasker’s quote (not by me), so that I see a real cost before I commit and only accept or decline.
+
 #### Tasker Relationship Management
 - **US-C-051**: As a client, I want to mark taskers as favorites, so that I can easily request them for future tasks.
 - **US-C-053**: As a client, I want to see my favorite taskers prioritized in recommendations, so that I can work with trusted providers.
@@ -178,6 +188,16 @@ To become the default operating system for local, on-demand human labor.
 - **US-T-015**: As a tasker, I want to accept or decline task offers, so that I have control over which jobs I take.
 - **US-T-101**: As a tasker, I want to receive task offers when a client selects me, so that I can review and decide whether to accept or reject based on my availability and preferences.
 - **US-T-102**: As a tasker, I want to see all my pending offers in one place, so that I can efficiently manage and respond to multiple task opportunities.
+
+#### Bid-Based Tasks & Quotes
+- **US-T-110**: As a tasker, I want to see tasks where a client requested a quote from me (“quote requests”), so that I can submit my proposed cost.
+- **US-T-111**: As a tasker, I want to be notified when a client requests a quote from me for a task, so that I can respond promptly.
+- **US-T-112**: As a tasker, I want to submit my proposed cost (and optional message) for a task I was asked to quote, so that the client receives my quote and can accept or decline.
+- **US-T-113**: As a tasker, I want my quote to be sent to the client to accept or decline, so that the client decides without me having to negotiate manually.
+- **US-T-114**: As a tasker, I want to be notified when a client accepts my quote, so that I can confirm the booking and proceed with the task.
+- **US-T-115**: As a tasker, I want to be notified when a client declines my quote, so that I know not to expect that job.
+- **US-T-116**: As a tasker, I want to set the price/cost for my work via my bid (quote), so that clients see my rate and accept or decline before we commit.
+- **US-T-117**: As a tasker, I want to discover tasks that are open for bids and submit my bid (amount, message), so that clients can compare my offer with others and choose.
 
 #### Pricing & Earnings
 - **US-T-016**: As a tasker, I want to set my hourly rate per task category, so that I can price my services competitively.

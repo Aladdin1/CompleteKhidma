@@ -18,6 +18,7 @@ import SpendingAnalyticsPage from './pages/SpendingAnalyticsPage';
 import TaskerDashboardPage from './pages/TaskerDashboardPage';
 import AvailableTasksPage from './pages/AvailableTasksPage';
 import MyApplicationsPage from './pages/MyApplicationsPage';
+import QuoteRequestsPage from './pages/QuoteRequestsPage';
 import MyBookingsPage from './pages/MyBookingsPage';
 import TaskerProfilePage from './pages/TaskerProfilePage';
 import TaskerViewPage from './pages/TaskerViewPage';
@@ -115,6 +116,14 @@ function App() {
             }
           />
           <Route
+            path="tasker/quote-requests"
+            element={
+              <RoleBasedRoute allowedRoles={['tasker']}>
+                <QuoteRequestsPage />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
             path="tasker/bookings"
             element={
               <RoleBasedRoute allowedRoles={['tasker']}>
@@ -144,6 +153,7 @@ function App() {
         <Route path="/tasker" element={<Navigate to="/dashboard/tasker" replace />} />
         <Route path="/tasker/tasks/available" element={<Navigate to="/dashboard/tasker/tasks/available" replace />} />
         <Route path="/tasker/tasks/offered" element={<Navigate to="/dashboard/tasker/tasks/offered" replace />} />
+        <Route path="/tasker/quote-requests" element={<Navigate to="/dashboard/tasker/quote-requests" replace />} />
         <Route path="/tasker/bookings" element={<Navigate to="/dashboard/tasker/bookings" replace />} />
       </Routes>
     </BrowserRouter>
