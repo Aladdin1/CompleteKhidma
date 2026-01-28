@@ -5,7 +5,7 @@ import { taskerAPI, taskAPI } from '../services/api';
 import '../styles/MyApplicationsPage.css';
 
 function MyApplicationsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,11 +88,21 @@ function MyApplicationsPage() {
               <div key={task.id} className="task-card offered">
                 <div className="task-header">
                   <span className="task-category">{task.category}</span>
-                  {task.score && (
-                    <span className="task-score">نقاط التطابق: {task.score}</span>
-                  )}
+                  {task.offer_type === 'booking_offered' ? (
+                    <span className="task-badge">{i18n.language === 'ar' ? 'عميل قبل عرضك — أكد الحجز' : 'Client accepted your quote — confirm booking'}</span>
+                  ) : task.offer_type === 'quote_request' ? (
+                    <span className="task-badge">{i18n.language === 'ar' ? 'طلب سعر من العميل' : 'Client requested your quote'}</span>
+                  ) : task.score ? (
+                    <span className="task-score">{i18n.language === 'ar' ? 'نقاط التطابق' : 'Match score'}: {task.score}</span>
+                  ) : null}
                 </div>
-                {task.explanation && (
+                {task.offer_type === 'booking_offered' && (
+                  <div className="task-explanation">{i18n.language === 'ar' ? 'العميل قبل سعرك. أكد الحجز لبدء المهمة.' : 'Client accepted your quote. Confirm the booking to start.'}</div>
+                )}
+                {task.offer_type === 'quote_request' && (
+                  <div className="task-explanation">{i18n.language === 'ar' ? 'ادخل مبلغك وأرسله للعميل' : 'Enter your cost and send it to the client.'}</div>
+                )}
+                {task.offer_type === 'candidate' && task.explanation && (
                   <div className="task-explanation">{task.explanation}</div>
                 )}
                 <p className="task-description">{task.description}</p>
@@ -113,26 +123,62 @@ function MyApplicationsPage() {
                   )}
                 </div>
                 <div className="task-actions">
-                  <button
-                    className="btn-accept"
-                    onClick={() => handleAccept(task.id)}
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? 'جاري المعالجة...' : 'قبول'}
-                  </button>
-                  <button
-                    className="btn-decline"
-                    onClick={() => handleDecline(task.id)}
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? 'جاري المعالجة...' : 'رفض'}
-                  </button>
-                  <button
-                    className="btn-view"
-                    onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
-                  >
-                    عرض التفاصيل
-                  </button>
+                  {task.offer_type === 'booking_offered' ? (
+                    <>
+                      <button
+                        className="btn-accept"
+                        onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
+                        disabled={isProcessing}
+                      >
+                        {i18n.language === 'ar' ? 'أكد الحجز' : 'Confirm booking'}
+                      </button>
+                      <button
+                        className="btn-view"
+                        onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
+                      >
+                        عرض التفاصيل
+                      </button>
+                    </>
+                  ) : task.offer_type === 'quote_request' ? (
+                    <>
+                      <button
+                        className="btn-accept"
+                        onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
+                        disabled={isProcessing}
+                      >
+                        {i18n.language === 'ar' ? 'تقديم السعر' : 'Submit quote'}
+                      </button>
+                      <button
+                        className="btn-view"
+                        onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
+                      >
+                        عرض التفاصيل
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        className="btn-accept"
+                        onClick={() => handleAccept(task.id)}
+                        disabled={isProcessing}
+                      >
+                        {isProcessing ? 'جاري المعالجة...' : 'قبول'}
+                      </button>
+                      <button
+                        className="btn-decline"
+                        onClick={() => handleDecline(task.id)}
+                        disabled={isProcessing}
+                      >
+                        {isProcessing ? 'جاري المعالجة...' : 'رفض'}
+                      </button>
+                      <button
+                        className="btn-view"
+                        onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
+                      >
+                        عرض التفاصيل
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );

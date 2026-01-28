@@ -42,6 +42,7 @@ function TaskCreatePage() {
     lng: 31.2357,
     starts_at: '',
     flexibility_minutes: 0,
+    bid_mode: 'invite_only', // 'open_for_bids' | 'invite_only' (US-C-101/102/103)
   });
 
   useEffect(() => {
@@ -130,10 +131,10 @@ function TaskCreatePage() {
       };
 
       const task = await taskAPI.create(taskData);
-      
-      // Post task immediately
-      await taskAPI.post(task.id);
-      
+
+      // Post task with bid_mode choice (US-C-101/102/103)
+      await taskAPI.post(task.id, { bid_mode: formData.bid_mode || 'invite_only' });
+
       navigate(`/dashboard/tasks/${task.id}`);
     } catch (err) {
       console.error('Task creation error:', err);
@@ -345,6 +346,47 @@ function TaskCreatePage() {
                 onChange={(e) => handleChange('starts_at', e.target.value)}
                 required
               />
+            </div>
+
+            {/* How do you want to get quotes? (US-C-101/102/103) */}
+            <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <Label className="text-base font-medium">
+                {t('task.howToGetQuotes') || 'How do you want to get quotes?'}
+              </Label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-3 has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50">
+                  <input
+                    type="radio"
+                    name="bid_mode"
+                    value="open_for_bids"
+                    checked={formData.bid_mode === 'open_for_bids'}
+                    onChange={(e) => handleChange('bid_mode', e.target.value)}
+                    className="h-4 w-4 border-gray-300 text-teal-600"
+                  />
+                  <span>
+                    <strong>{t('task.openForBids') || 'Open for bids'}</strong>
+                    <span className="ml-1 block text-sm text-gray-600">
+                      {t('task.openForBidsHint') || 'Any matching tasker can submit a quote'}
+                    </span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-3 has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50">
+                  <input
+                    type="radio"
+                    name="bid_mode"
+                    value="invite_only"
+                    checked={formData.bid_mode === 'invite_only'}
+                    onChange={(e) => handleChange('bid_mode', e.target.value)}
+                    className="h-4 w-4 border-gray-300 text-teal-600"
+                  />
+                  <span>
+                    <strong>{t('task.chooseTaskers') || 'Choose specific taskers'}</strong>
+                    <span className="ml-1 block text-sm text-gray-600">
+                      {t('task.chooseTaskersHint') || "I'll pick who to ask for a quote"}
+                    </span>
+                  </span>
+                </label>
+              </div>
             </div>
 
             {/* Form Actions */}

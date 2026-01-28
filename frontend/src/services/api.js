@@ -225,8 +225,8 @@ export const taskAPI = {
     return response.data;
   },
 
-  post: async (taskId) => {
-    const response = await api.post(`/tasks/${taskId}/post`);
+  post: async (taskId, options = {}) => {
+    const response = await api.post(`/tasks/${taskId}/post`, options);
     return response.data;
   },
 
@@ -317,6 +317,11 @@ export const taskerAPI = {
 
   getQuoteRequests: async (params = {}) => {
     const response = await api.get('/taskers/me/quote-requests', { params });
+    return response.data;
+  },
+
+  getOpenForBidTasks: async (params = {}) => {
+    const response = await api.get('/taskers/me/tasks/open-for-bid', { params });
     return response.data;
   },
 

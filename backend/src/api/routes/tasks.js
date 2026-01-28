@@ -251,9 +251,22 @@ router.get('/:task_id', authenticate, optionalAuth, async (req, res, next) => {
     
     let isTaskerAuthorized = false;
     if (req.user?.role === 'tasker' && userId) {
-      // Check if task is available for viewing (posted/matching) OR tasker has a booking OR tasker has a bid (requested/pending)
-      if (task.state === 'posted' || task.state === 'matching') {
+      const bidMode = task.bid_mode || 'invite_only';
+      const isPostedOrMatching = task.state === 'posted' || task.state === 'matching';
+
+      if (isPostedOrMatching && bidMode === 'open_for_bids') {
         isTaskerAuthorized = true;
+      } else if (isPostedOrMatching && bidMode === 'invite_only') {
+        // invite_only: only taskers with a requested/pending bid (i.e. invited) may view
+        try {
+          const bidResult = await pool.query(
+            "SELECT id FROM task_bids WHERE task_id = $1 AND tasker_id = $2 AND status IN ('requested','pending') LIMIT 1",
+            [task_id, userId]
+          );
+          isTaskerAuthorized = bidResult.rows.length > 0;
+        } catch (_) {
+          isTaskerAuthorized = false;
+        }
       } else {
         const bookingResult = await pool.query(
           'SELECT id FROM bookings WHERE task_id = $1 AND tasker_id = $2 LIMIT 1',
@@ -421,6 +434,7 @@ router.get('/:task_id', authenticate, optionalAuth, async (req, res, next) => {
       },
       structured_inputs: task.structured_inputs,
       state: task.state,
+      bid_mode: task.bid_mode || 'invite_only',
       created_at: task.created_at
     };
 
@@ -565,12 +579,16 @@ router.patch('/:task_id', authenticate, requireRole('client'), async (req, res, 
 
 /**
  * POST /api/v1/tasks/:task_id/post
- * Post task to marketplace
+ * Post task to marketplace. Body: { bid_mode?: 'open_for_bids' | 'invite_only' } (US-C-101/102/103).
  */
 router.post('/:task_id/post', authenticate, requireRole('client'), async (req, res, next) => {
   try {
     const { task_id } = req.params;
     const userId = req.user.id;
+    const body = z.object({
+      bid_mode: z.enum(['open_for_bids', 'invite_only']).optional(),
+    }).safeParse(req.body || {});
+    const bid_mode = body.success && body.data.bid_mode ? body.data.bid_mode : 'invite_only';
 
     const taskResult = await pool.query(
       'SELECT * FROM tasks WHERE id = $1 AND client_id = $2',
@@ -601,17 +619,17 @@ router.post('/:task_id/post', authenticate, requireRole('client'), async (req, r
     try {
       await client.query('BEGIN');
 
-      // Update state to posted
+      // Update state to posted and set bid_mode (US-C-101/102/103)
       await client.query(
-        'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
-        ['posted', task_id]
+        'UPDATE tasks SET state = $1, bid_mode = $2, updated_at = now() WHERE id = $3',
+        ['posted', bid_mode, task_id]
       );
 
       // Log state event
       await client.query(
-        `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
-         VALUES (uuid_generate_v4(), $1, 'draft', 'posted', $2)`,
-        [task_id, userId]
+        `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id, meta)
+         VALUES (uuid_generate_v4(), $1, 'draft', 'posted', $2, $3)`,
+        [task_id, userId, JSON.stringify({ bid_mode })]
       );
 
       // TODO: Trigger matching service to find candidates
@@ -620,11 +638,13 @@ router.post('/:task_id/post', authenticate, requireRole('client'), async (req, r
       await client.query('COMMIT');
 
       const updatedResult = await client.query('SELECT * FROM tasks WHERE id = $1', [task_id]);
+      const row = updatedResult.rows[0];
 
       res.json({
-        id: updatedResult.rows[0].id,
-        state: updatedResult.rows[0].state,
-        updated_at: updatedResult.rows[0].updated_at
+        id: row.id,
+        state: row.state,
+        bid_mode: row.bid_mode || 'invite_only',
+        updated_at: row.updated_at
       });
     } catch (error) {
       await client.query('ROLLBACK');

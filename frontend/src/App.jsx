@@ -19,6 +19,7 @@ import TaskerDashboardPage from './pages/TaskerDashboardPage';
 import AvailableTasksPage from './pages/AvailableTasksPage';
 import MyApplicationsPage from './pages/MyApplicationsPage';
 import QuoteRequestsPage from './pages/QuoteRequestsPage';
+import OpenForBidsPage from './pages/OpenForBidsPage';
 import MyBookingsPage from './pages/MyBookingsPage';
 import TaskerProfilePage from './pages/TaskerProfilePage';
 import TaskerViewPage from './pages/TaskerViewPage';
@@ -124,6 +125,14 @@ function App() {
             }
           />
           <Route
+            path="tasker/open-for-bid"
+            element={
+              <RoleBasedRoute allowedRoles={['tasker']}>
+                <OpenForBidsPage />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
             path="tasker/bookings"
             element={
               <RoleBasedRoute allowedRoles={['tasker']}>
@@ -154,6 +163,7 @@ function App() {
         <Route path="/tasker/tasks/available" element={<Navigate to="/dashboard/tasker/tasks/available" replace />} />
         <Route path="/tasker/tasks/offered" element={<Navigate to="/dashboard/tasker/tasks/offered" replace />} />
         <Route path="/tasker/quote-requests" element={<Navigate to="/dashboard/tasker/quote-requests" replace />} />
+        <Route path="/tasker/open-for-bid" element={<Navigate to="/dashboard/tasker/open-for-bid" replace />} />
         <Route path="/tasker/bookings" element={<Navigate to="/dashboard/tasker/bookings" replace />} />
       </Routes>
     </BrowserRouter>

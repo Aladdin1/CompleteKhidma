@@ -22,7 +22,8 @@ async function migrate() {
       '006_fix_bookings_unique_constraint.sql',
       '007_user_payment_methods.sql',
       '008_oauth_support.sql',
-      '009_task_bids.sql'
+      '009_task_bids.sql',
+      '010_task_bid_mode.sql'
     ];
     
     for (const migrationFile of migrations) {

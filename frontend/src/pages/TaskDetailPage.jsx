@@ -506,13 +506,20 @@ function TaskDetailPage() {
           </section>
         )}
 
-        {/* Bid-based: Quotes for this task + Choose taskers & request quote */}
+        {/* Bid-based: Quotes for this task; "Choose taskers" only when invite_only (US-C-102/103) */}
         {isTaskOwner && (task.state === 'posted' || task.state === 'matching') && !task.assigned_tasker && (
           <section className="py-12 bg-gray-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                {i18n.language === 'ar' ? 'العروض والطلبات' : 'Quotes & choose tasker'}
+                {task.bid_mode === 'open_for_bids'
+                  ? (i18n.language === 'ar' ? 'العروض الواردة' : 'Quotes for this task')
+                  : (i18n.language === 'ar' ? 'العروض والطلبات' : 'Quotes & choose tasker')}
               </h2>
+              {task.bid_mode === 'open_for_bids' && (
+                <p className="text-gray-600 mb-6">
+                  {i18n.language === 'ar' ? 'هذه المهمة مفتوحة للعروض – أي عامل متطابق يمكنه تقديم سعره.' : 'This task is open for bids – any matching tasker can submit a quote.'}
+                </p>
+              )}
 
               {/* Quotes received */}
               {bids.length > 0 && (
@@ -561,7 +568,8 @@ function TaskDetailPage() {
                 </div>
               )}
 
-              {/* Choose taskers & request quote */}
+              {/* Choose taskers & request quote — only when invite_only (US-C-103) */}
+              {task.bid_mode !== 'open_for_bids' && (
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">
                   {i18n.language === 'ar' ? 'اختر عاملاً واطلب سعره' : 'Choose a tasker and request a quote'}
@@ -635,45 +643,56 @@ function TaskDetailPage() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </section>
         )}
 
-        {/* Tasker: Submit quote form when client requested a quote */}
-        {user?.role === 'tasker' && task?.my_bid?.status === 'requested' && (
-          <section className="py-8 bg-amber-50 border border-amber-200 rounded-xl max-w-2xl mx-auto px-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {i18n.language === 'ar' ? 'العميل طلب منك تقديم السعر' : 'Client requested a quote from you'}
-            </h3>
-            <p className="text-gray-700 text-sm mb-4">
-              {i18n.language === 'ar' ? 'أدخل التكلفة المقترحة واختيارياً رسالة، وسيتم إرسالها للعميل لقبولها أو رفضها.' : 'Enter your proposed cost and optionally a message. It will be sent to the client to accept or decline.'}
-            </p>
-            <form onSubmit={handleSubmitQuote} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{i18n.language === 'ar' ? 'المبلغ' : 'Amount'} (EGP)</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={quoteForm.amount}
-                  onChange={(e) => setQuoteForm((f) => ({ ...f, amount: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{i18n.language === 'ar' ? 'رسالة (اختياري)' : 'Message (optional)'}</label>
-                <textarea
-                  value={quoteForm.message}
-                  onChange={(e) => setQuoteForm((f) => ({ ...f, message: e.target.value }))}
-                  rows={2}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <Button type="submit" disabled={submittingQuote} className="bg-teal-600 hover:bg-teal-700">
-                {submittingQuote ? (i18n.language === 'ar' ? 'جاري الإرسال...' : 'Sending...') : (i18n.language === 'ar' ? 'إرسال السعر للعميل' : 'Send quote to client')}
-              </Button>
-            </form>
-          </section>
+        {/* Tasker: Submit quote when client requested (invite_only) or task is open_for_bids (US-C-102/103) */}
+        {user?.role === 'tasker' && !task?.assigned_tasker && ((task?.my_bid?.status === 'requested') || (task?.bid_mode === 'open_for_bids' && !task?.my_bid) || (task?.bid_mode === 'open_for_bids' && task?.my_bid?.status === 'pending')) && (
+          task?.my_bid?.status === 'pending' ? (
+            <section className="py-8 bg-gray-50 border border-gray-200 rounded-xl max-w-2xl mx-auto px-6">
+              <p className="text-gray-700">
+                {i18n.language === 'ar' ? 'تم إرسال عرضك – في انتظار رد العميل' : 'Your quote was submitted – waiting for client to accept or decline.'}
+              </p>
+            </section>
+          ) : (
+            <section className="py-8 bg-amber-50 border border-amber-200 rounded-xl max-w-2xl mx-auto px-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {task?.bid_mode === 'open_for_bids'
+                  ? (i18n.language === 'ar' ? 'هذه المهمة مفتوحة للعروض – قدّم سعرك' : 'This task is open for bids – submit your quote')
+                  : (i18n.language === 'ar' ? 'العميل طلب منك تقديم السعر' : 'Client requested a quote from you')}
+              </h3>
+              <p className="text-gray-700 text-sm mb-4">
+                {i18n.language === 'ar' ? 'أدخل التكلفة المقترحة واختيارياً رسالة، وسيتم إرسالها للعميل لقبولها أو رفضها.' : 'Enter your proposed cost and optionally a message. It will be sent to the client to accept or decline.'}
+              </p>
+              <form onSubmit={handleSubmitQuote} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{i18n.language === 'ar' ? 'المبلغ' : 'Amount'} (EGP)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={quoteForm.amount}
+                    onChange={(e) => setQuoteForm((f) => ({ ...f, amount: e.target.value }))}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{i18n.language === 'ar' ? 'رسالة (اختياري)' : 'Message (optional)'}</label>
+                  <textarea
+                    value={quoteForm.message}
+                    onChange={(e) => setQuoteForm((f) => ({ ...f, message: e.target.value }))}
+                    rows={2}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <Button type="submit" disabled={submittingQuote} className="bg-teal-600 hover:bg-teal-700">
+                  {submittingQuote ? (i18n.language === 'ar' ? 'جاري الإرسال...' : 'Sending...') : (i18n.language === 'ar' ? 'إرسال السعر للعميل' : 'Send quote to client')}
+                </Button>
+              </form>
+            </section>
+          )
         )}
 
         {/* Review form */}
@@ -720,7 +739,7 @@ function TaskDetailPage() {
                 {i18n.language === 'ar' ? 'إلغاء المهمة' : 'Cancel task'}
               </Button>
             )}
-            {user?.role === 'tasker' && (task.state === 'posted' || task.state === 'matching') && (
+            {user?.role === 'tasker' && (task.state === 'posted' || task.state === 'matching') && !['invite_only', 'open_for_bids'].includes(task.bid_mode || 'invite_only') && (
               <Button onClick={handleAccept} className="bg-teal-600 hover:bg-teal-700">
                 {i18n.language === 'ar' ? 'قبول المهمة' : 'Accept task'}
               </Button>

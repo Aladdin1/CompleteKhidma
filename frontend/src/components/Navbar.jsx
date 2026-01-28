@@ -101,6 +101,12 @@ const Navbar = ({ variant = 'auto' }) => {
                     <Link to="/dashboard/tasker/quote-requests" className={`text-sm ${linkClass}`}>
                       {i18n.language === 'ar' ? 'طلبات السعر' : 'Quote requests'}
                     </Link>
+                    <Link to="/dashboard/tasker/open-for-bid" className={`text-sm ${linkClass}`}>
+                      {i18n.language === 'ar' ? 'مهام مفتوحة للعروض' : 'Open for bids'}
+                    </Link>
+                    <Link to="/dashboard/tasker/bookings" className={`text-sm ${linkClass}`}>
+                      {i18n.language === 'ar' ? 'حجوزاتي' : 'My Bookings'}
+                    </Link>
                     <Link to="/dashboard/messages" className={`relative text-sm ${linkClass}`}>
                       {t('messages.title')}
                       {unreadMessageCount > 0 && (
@@ -239,6 +245,12 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                     <Link to="/dashboard/tasker/quote-requests" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {i18n.language === 'ar' ? 'طلبات السعر' : 'Quote requests'}
+                    </Link>
+                    <Link to="/dashboard/tasker/open-for-bid" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {i18n.language === 'ar' ? 'مهام مفتوحة للعروض' : 'Open for bids'}
+                    </Link>
+                    <Link to="/dashboard/tasker/bookings" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {i18n.language === 'ar' ? 'حجوزاتي' : 'My Bookings'}
                     </Link>
                     <Link to="/dashboard/messages" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('messages.title')}

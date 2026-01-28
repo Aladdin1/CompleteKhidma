@@ -81,6 +81,9 @@ To become the default operating system for local, on-demand human labor.
 - **US-C-008**: As a client, I want to upload photos of the task, so that taskers can better understand what needs to be done.
 - **US-C-009**: As a client, I want to specify my preferred time window, so that taskers can accept tasks that fit their schedule.
 - **US-C-010**: As a client, I want to post a task and see it go live immediately, so that I can get help quickly.
+- **US-C-101**: As a client, I want to choose at post time whether my task is **open for bids** (any matching tasker can submit a quote) or **I will choose specific taskers** to request a quote from, so that the right flow starts as soon as I post.
+- **US-C-102**: As a client, I want to post a task as “open for bids”, so that multiple taskers can submit quotes and I can pick the best option.
+- **US-C-103**: As a client, I want to post a task and then select specific tasker(s) to request a quote from, so that only those taskers see the task in their lists, can open it, and can submit a quote; other taskers do not see it in Available tasks and do not have an “Accept task” action.
 
 #### Task Management Enhancements
 - **US-C-045**: As a client, I want to edit my task details before it's accepted, so that I can correct mistakes or add information.
@@ -187,14 +190,16 @@ To become the default operating system for local, on-demand human labor.
 - **US-T-014**: As a tasker, I want to see tasks ranked by relevance to me (distance, skills, earnings potential), so that I can prioritize the best opportunities.
 - **US-T-015**: As a tasker, I want to accept or decline task offers, so that I have control over which jobs I take.
 - **US-T-101**: As a tasker, I want to receive task offers when a client selects me, so that I can review and decide whether to accept or reject based on my availability and preferences.
-- **US-T-102**: As a tasker, I want to see all my pending offers in one place, so that I can efficiently manage and respond to multiple task opportunities.
+- **US-T-102**: As a tasker, I want to see all my pending offers in one place (My Offers: quote requests, client-accepted-quote, algo-offered; My Bookings: offered, accepted, in progress, completed), so that I can efficiently manage and respond to multiple task opportunities.
 
 #### Bid-Based Tasks & Quotes
-- **US-T-110**: As a tasker, I want to see tasks where a client requested a quote from me (“quote requests”), so that I can submit my proposed cost.
+- **US-T-110**: As a tasker, I want to see tasks where a client requested a quote from me (“quote requests”) in Quote requests and in My Offers, so that I can submit my proposed cost.
 - **US-T-111**: As a tasker, I want to be notified when a client requests a quote from me for a task, so that I can respond promptly.
 - **US-T-112**: As a tasker, I want to submit my proposed cost (and optional message) for a task I was asked to quote, so that the client receives my quote and can accept or decline.
 - **US-T-113**: As a tasker, I want my quote to be sent to the client to accept or decline, so that the client decides without me having to negotiate manually.
 - **US-T-114**: As a tasker, I want to be notified when a client accepts my quote, so that I can confirm the booking and proceed with the task.
+- **US-T-118**: As a tasker, I want to see tasks where the client accepted my quote (booking status “offered”) in My Offers and in My Bookings, so that I can confirm the booking and start the task.
+- **US-T-119**: As a tasker, when a client posted a task as “choose specific taskers”, I want to see that task only if the client requested a quote from me, so that I am not shown or able to act on tasks I was not invited to.
 - **US-T-115**: As a tasker, I want to be notified when a client declines my quote, so that I know not to expect that job.
 - **US-T-116**: As a tasker, I want to set the price/cost for my work via my bid (quote), so that clients see my rate and accept or decline before we commit.
 - **US-T-117**: As a tasker, I want to discover tasks that are open for bids and submit my bid (amount, message), so that clients can compare my offer with others and choose.

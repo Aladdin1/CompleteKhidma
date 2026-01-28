@@ -522,6 +522,7 @@ router.get('/me/tasks/available', authenticate, requireRole('tasker'), paginatio
       FROM tasks t
       LEFT JOIN users u ON t.client_id = u.id
       WHERE t.state IN ('posted', 'matching')
+        AND COALESCE(t.bid_mode, 'invite_only') = 'open_for_bids'
         AND (6371 * acos(
           cos(radians($1)) * cos(radians(t.lat)) *
           cos(radians(t.lng) - radians($2)) +
@@ -589,6 +590,7 @@ router.get('/me/tasks/available', authenticate, requireRole('tasker'), paginatio
       SELECT COUNT(*) as total
       FROM tasks t
       WHERE t.state IN ('posted', 'matching')
+        AND COALESCE(t.bid_mode, 'invite_only') = 'open_for_bids'
         AND (6371 * acos(
           cos(radians($1)) * cos(radians(t.lat)) *
           cos(radians(t.lng) - radians($2)) +
@@ -690,6 +692,88 @@ router.get('/me/tasks/available', authenticate, requireRole('tasker'), paginatio
 });
 
 /**
+ * GET /api/v1/taskers/me/tasks/open-for-bid
+ * Tasks that are open for bids (US-C-102). Any matching tasker can submit a quote.
+ * Requires tasks.bid_mode = 'open_for_bids'. Tasker must have matching category and be in range.
+ */
+router.get('/me/tasks/open-for-bid', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { limit, cursor } = req.pagination;
+
+    const serviceAreaResult = await pool.query(
+      'SELECT center_lat, center_lng, radius_km FROM tasker_service_areas WHERE tasker_id = $1',
+      [userId]
+    );
+    if (serviceAreaResult.rows.length === 0) {
+      return res.json(formatPaginatedResponse([], null));
+    }
+    const { center_lat, center_lng, radius_km } = serviceAreaResult.rows[0];
+
+    const categoriesResult = await pool.query(
+      'SELECT category FROM tasker_categories WHERE tasker_id = $1',
+      [userId]
+    );
+    const categories = categoriesResult.rows.map(r => r.category);
+    if (categories.length === 0) {
+      return res.json(formatPaginatedResponse([], null));
+    }
+
+    let query = `
+      SELECT t.id, t.client_id, t.category, t.subcategory, t.description, t.address, t.city, t.lat, t.lng,
+             t.starts_at, t.flexibility_minutes, t.currency, t.est_min_amount, t.est_max_amount, t.est_minutes,
+             t.state, t.created_at, u.full_name AS client_name,
+             (6371 * acos(cos(radians($1)) * cos(radians(t.lat)) * cos(radians(t.lng) - radians($2)) + sin(radians($1)) * sin(radians(t.lat)))) AS distance_km
+      FROM tasks t
+      LEFT JOIN users u ON t.client_id = u.id
+      WHERE t.state IN ('posted', 'matching')
+        AND COALESCE(t.bid_mode, 'invite_only') = 'open_for_bids'
+        AND t.category = ANY($3)
+        AND (6371 * acos(cos(radians($1)) * cos(radians(t.lat)) * cos(radians(t.lng) - radians($2)) + sin(radians($1)) * sin(radians(t.lat)))) <= $4
+        AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.task_id = t.id AND b.status NOT IN ('canceled', 'disputed'))
+    `;
+    const params = [center_lat, center_lng, categories, radius_km];
+    let paramIndex = 5;
+    if (cursor) {
+      query += ` AND t.created_at < (SELECT created_at FROM tasks WHERE id = $${paramIndex})`;
+      params.push(cursor);
+      paramIndex++;
+    }
+    query += ` ORDER BY t.created_at DESC LIMIT $${paramIndex}`;
+    params.push(limit + 1);
+
+    const result = await pool.query(query, params);
+    const rows = result.rows.slice(0, limit);
+    const nextCursor = result.rows.length > limit ? rows[rows.length - 1]?.id : null;
+
+    const items = rows.map((r) => ({
+      id: r.id,
+      client_id: r.client_id,
+      client_name: r.client_name || null,
+      category: r.category,
+      subcategory: r.subcategory,
+      description: r.description,
+      location: { address: r.address, city: r.city, point: { lat: r.lat, lng: r.lng } },
+      schedule: { starts_at: r.starts_at, flexibility_minutes: r.flexibility_minutes },
+      pricing: {
+        estimate: {
+          min_total: { currency: r.currency, amount: r.est_min_amount },
+          max_total: { currency: r.currency, amount: r.est_max_amount },
+        },
+        estimated_minutes: r.est_minutes,
+      },
+      state: r.state,
+      distance_km: r.distance_km != null ? parseFloat(Number(r.distance_km).toFixed(2)) : null,
+      created_at: r.created_at,
+    }));
+
+    res.json(formatPaginatedResponse(items, nextCursor));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/v1/taskers/me/quote-requests
  * Tasks where the client requested a quote from this tasker (task_bids status 'requested').
  * Tasker uses this to see "Client requested a quote — propose your cost" and submit bid.
@@ -746,35 +830,54 @@ router.get('/me/quote-requests', authenticate, requireRole('tasker'), pagination
 
 /**
  * GET /api/v1/taskers/me/tasks/offered
- * Get tasks specifically offered to this tasker
+ * Get tasks specifically offered to this tasker:
+ * - From bookings with status 'offered' (client accepted bid — tasker should confirm)
+ * - From task_bids with status 'requested' (client requested a quote — invite_only)
+ * - From task_candidates (algo-offered)
  */
 router.get('/me/tasks/offered', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { limit, cursor } = req.pagination;
 
-    let query = `
+    // 1) Tasks where client accepted this tasker's bid (booking status 'offered' — confirm to start)
+    const bookingOfferedResult = await pool.query(
+      `SELECT t.*, b.id AS booking_id
+       FROM tasks t
+       JOIN bookings b ON b.task_id = t.id
+       WHERE b.tasker_id = $1 AND b.status = 'offered'`,
+      [userId]
+    );
+    const bookingOfferedRows = bookingOfferedResult.rows;
+
+    // 2) Tasks where client requested a quote from this tasker (invite_only flow)
+    const quoteRequestedResult = await pool.query(
+      `SELECT t.*, b.id AS bid_id, b.created_at AS bid_created_at
+       FROM tasks t
+       JOIN task_bids b ON b.task_id = t.id
+       WHERE b.tasker_id = $1 AND b.status = 'requested' AND t.state IN ('posted', 'matching')`,
+      [userId]
+    );
+    const quoteRequestedRows = quoteRequestedResult.rows;
+
+    // 3) Tasks from task_candidates (algo-offered)
+    let candidateQuery = `
       SELECT t.*, tc.rank, tc.score, tc.explanation
       FROM tasks t
       JOIN task_candidates tc ON t.id = tc.task_id
       WHERE tc.tasker_id = $1 AND t.state = 'matching'
     `;
-
-    const params = [userId];
-
+    const candidateParams = [userId];
     if (cursor) {
-      query += ` AND t.created_at < (SELECT created_at FROM tasks WHERE id = $2)`;
-      params.push(cursor);
+      candidateQuery += ` AND t.created_at < (SELECT created_at FROM tasks WHERE id = $2)`;
+      candidateParams.push(cursor);
     }
+    candidateQuery += ` ORDER BY tc.rank ASC, t.created_at DESC LIMIT $${candidateParams.length + 1}`;
+    candidateParams.push(limit + 1);
+    const candidateResult = await pool.query(candidateQuery, candidateParams);
+    const candidateRows = candidateResult.rows;
 
-    query += ` ORDER BY tc.rank ASC, t.created_at DESC LIMIT $${params.length + 1}`;
-    params.push(limit + 1);
-
-    const result = await pool.query(query, params);
-    const tasks = result.rows.slice(0, limit);
-    const nextCursor = result.rows.length > limit ? tasks[tasks.length - 1].id : null;
-
-    const formattedTasks = tasks.map(task => ({
+    const toFormatted = (task, extra) => ({
       id: task.id,
       client_id: task.client_id,
       category: task.category,
@@ -800,12 +903,47 @@ router.get('/me/tasks/offered', authenticate, requireRole('tasker'), pagination,
         }
       },
       state: task.state,
-      rank: task.rank,
-      score: parseFloat(task.score),
-      created_at: task.created_at
+      created_at: task.created_at,
+      ...extra
+    });
+
+    const bookingOfferedFormatted = bookingOfferedRows.map(r => toFormatted(r, {
+      offer_type: 'booking_offered',
+      booking_id: r.booking_id,
+      bid_id: null,
+      rank: null,
+      score: null,
+      explanation: null
     }));
 
-    res.json(formatPaginatedResponse(formattedTasks, nextCursor));
+    const quoteRequestedFormatted = quoteRequestedRows.map(r => toFormatted(r, {
+      offer_type: 'quote_request',
+      bid_id: r.bid_id,
+      booking_id: null,
+      rank: null,
+      score: null,
+      explanation: null
+    }));
+
+    const candidateFormatted = candidateRows.map(r => toFormatted(r, {
+      offer_type: 'candidate',
+      bid_id: null,
+      booking_id: null,
+      rank: r.rank,
+      score: r.score != null ? parseFloat(r.score) : null,
+      explanation: r.explanation
+    }));
+
+    const seen = new Set(bookingOfferedFormatted.map(t => t.id));
+    const quoteOnly = quoteRequestedFormatted.filter(t => !seen.has(t.id));
+    quoteOnly.forEach(t => seen.add(t.id));
+    const candidatesOnly = candidateFormatted.filter(t => !seen.has(t.id));
+    // First page: booking_offered (client accepted — confirm) first, then quote_request, then candidate. Next pages: candidates only.
+    const merged = cursor ? candidatesOnly : [...bookingOfferedFormatted, ...quoteOnly, ...candidatesOnly];
+    const tasks = merged.slice(0, limit);
+    const nextCursor = merged.length > limit ? merged[limit - 1].id : null;
+
+    res.json(formatPaginatedResponse(tasks, nextCursor));
   } catch (error) {
     next(error);
   }
