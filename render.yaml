@@ -1,0 +1,33 @@
+# Render Blueprint (optional): deploy backend + Postgres from dashboard
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: khidma-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        sync: false
+        # Set in Render Dashboard: generate with openssl rand -base64 32
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
+      - key: DATABASE_URL
+        fromDatabase:
+          name: khidma-db
+          property: connectionString
+      - key: CORS_ORIGIN
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+databases:
+  - name: khidma-db
+    plan: free
