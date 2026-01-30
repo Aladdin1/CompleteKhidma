@@ -8,37 +8,23 @@ import app from './app.js';
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
-const WS_PORT = process.env.WS_PORT || 3001;
 
-// WebSocket Server for real-time messaging
-const server = createServer();
-const wss = new WebSocketServer({ server, path: '/ws' });
+// Single HTTP server: Express API + WebSocket on same port (works on Render, Railway, etc.)
+const httpServer = createServer(app);
+const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
 wss.on('connection', (ws) => {
   console.log('New WebSocket connection');
-  
   ws.on('message', (message) => {
-    console.log('Received:', message.toString());
-    // Echo for now - will implement proper message handling
     ws.send(JSON.stringify({ type: 'echo', data: message.toString() }));
   });
-
-  ws.on('close', () => {
-    console.log('WebSocket connection closed');
-  });
+  ws.on('close', () => console.log('WebSocket connection closed'));
 });
 
-// Initialize services
 const initializeServices = async () => {
-  // Start HTTP server first (don't wait for DB/Redis)
-  app.listen(PORT, () => {
-    console.log(`🚀 KHIDMA Backend API running on http://localhost:${PORT}`);
-    console.log(`📡 WebSocket server running on ws://localhost:${WS_PORT}`);
-  });
-
-  // Start WebSocket server
-  server.listen(WS_PORT, () => {
-    console.log(`🔌 WebSocket server ready on port ${WS_PORT}`);
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 KHIDMA Backend API on http://localhost:${PORT}`);
+    console.log(`📡 WebSocket on ws://localhost:${PORT}/ws`);
   });
 
   // Try to connect to services in background (non-blocking)
