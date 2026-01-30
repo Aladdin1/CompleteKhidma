@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole } from '../../middleware/auth.js';
+import { authenticate, requireRole, requireAdminOnly } from '../../middleware/auth.js';
 import { pagination, formatPaginatedResponse } from '../../middleware/pagination.js';
 import pool from '../../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -79,12 +79,12 @@ router.post('/tasks/:task_id/assign', async (req, res, next) => {
 
 /**
  * GET /api/v1/admin/tasks
- * List all tasks
+ * List all tasks. US-A-001, US-A-002: ?unfilled_minutes=N shows tasks posted/matching for ≥N minutes with no accept.
  */
 router.get('/tasks', pagination, async (req, res, next) => {
   try {
     const { limit, cursor } = req.pagination;
-    const { state, city } = req.query;
+    const { state, city, unfilled_minutes } = req.query;
 
     let query = 'SELECT * FROM tasks WHERE 1=1';
     const params = [];
@@ -100,6 +100,12 @@ router.get('/tasks', pagination, async (req, res, next) => {
       params.push(city);
     }
 
+    const mins = parseInt(unfilled_minutes, 10);
+    if (!Number.isNaN(mins) && mins > 0) {
+      query += ` AND state IN ('posted','matching') AND created_at < now() - ($${paramIndex++} || ' minutes')::interval`;
+      params.push(String(mins));
+    }
+
     if (cursor) {
       query += ` AND created_at < (SELECT created_at FROM tasks WHERE id = $${paramIndex++})`;
       params.push(cursor);
@@ -113,6 +119,159 @@ router.get('/tasks', pagination, async (req, res, next) => {
     const nextCursor = result.rows.length > limit ? tasks[tasks.length - 1].id : null;
 
     res.json(formatPaginatedResponse(tasks, nextCursor));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/tasks/:task_id/cancel
+ * US-A-005: Cancel task on behalf of client (ops/admin)
+ */
+router.post('/tasks/:task_id/cancel', async (req, res, next) => {
+  try {
+    const { task_id } = req.params;
+    const { reason } = req.body || {};
+    const taskResult = await pool.query('SELECT * FROM tasks WHERE id = $1', [task_id]);
+    if (taskResult.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } });
+    }
+    const task = taskResult.rows[0];
+    if (['completed', 'settled', 'reviewed'].includes(task.state)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_STATE', message: 'Cannot cancel task in current state' }
+      });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const newState = 'canceled_by_client';
+      await client.query(
+        'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
+        [newState, task_id]
+      );
+      await client.query(
+        `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id, reason)
+         VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5)`,
+        [task_id, task.state, newState, req.user.id, reason ? String(reason) : 'Canceled on behalf of client by admin/ops']
+      );
+      await client.query(
+        `UPDATE bookings SET status = 'canceled', updated_at = now()
+         WHERE task_id = $1 AND status NOT IN ('completed', 'canceled', 'disputed')`,
+        [task_id]
+      );
+      await client.query(
+        `INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, meta)
+         VALUES (uuid_generate_v4(), $1, 'cancel_task_on_behalf', 'task', $2, $3)`,
+        [req.user.id, task_id, JSON.stringify({ reason: reason || null, client_id: task.client_id })]
+      );
+      await client.query('COMMIT');
+      res.json({ id: task_id, state: newState, message: 'Task canceled on behalf of client' });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/admin/tasks/:task_id/history
+ * Full task details + task state history + audit entries for admin tasks view.
+ * Returns { task, timeline } where task has full fields + client info; timeline merges state_events and audit_log.
+ */
+router.get('/tasks/:task_id/history', async (req, res, next) => {
+  try {
+    const { task_id } = req.params;
+
+    const taskResult = await pool.query(
+      `SELECT t.*,
+              c.full_name AS client_name, c.phone AS client_phone
+       FROM tasks t
+       LEFT JOIN users c ON c.id = t.client_id
+       WHERE t.id = $1`,
+      [task_id]
+    );
+    if (taskResult.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } });
+    }
+    const row = taskResult.rows[0];
+    const taskDetail = {
+      id: row.id,
+      client_id: row.client_id,
+      client_name: row.client_name || row.client_phone || null,
+      client_phone: row.client_phone,
+      category: row.category,
+      subcategory: row.subcategory,
+      description: row.description,
+      address: row.address,
+      city: row.city,
+      district: row.district,
+      lat: row.lat,
+      lng: row.lng,
+      starts_at: row.starts_at,
+      flexibility_minutes: row.flexibility_minutes,
+      pricing_model: row.pricing_model,
+      price_band_id: row.price_band_id,
+      est_minutes: row.est_minutes,
+      est_min_amount: row.est_min_amount,
+      est_max_amount: row.est_max_amount,
+      currency: row.currency,
+      structured_inputs: row.structured_inputs,
+      state: row.state,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
+
+    const eventsResult = await pool.query(
+      `SELECT e.id, e.task_id, e.from_state, e.to_state, e.actor_user_id, e.reason, e.meta, e.created_at,
+              u.full_name AS actor_name, u.phone AS actor_phone
+       FROM task_state_events e
+       LEFT JOIN users u ON u.id = e.actor_user_id
+       WHERE e.task_id = $1
+       ORDER BY e.created_at DESC
+       LIMIT 100`,
+      [task_id]
+    );
+    const stateEntries = (eventsResult.rows || []).map((r) => ({
+      type: 'state_change',
+      id: r.id,
+      from_state: r.from_state,
+      to_state: r.to_state,
+      actor_user_id: r.actor_user_id,
+      actor_name: r.actor_name || r.actor_phone || (r.actor_user_id ? `${String(r.actor_user_id).slice(0, 8)}…` : null),
+      reason: r.reason,
+      meta: r.meta,
+      created_at: r.created_at,
+    }));
+
+    const auditResult = await pool.query(
+      `SELECT a.id, a.actor_user_id, a.action, a.target_type, a.target_id, a.meta, a.created_at,
+              u.full_name AS actor_name, u.phone AS actor_phone
+       FROM audit_log a
+       LEFT JOIN users u ON u.id = a.actor_user_id
+       WHERE a.target_type = 'task' AND a.target_id = $1
+       ORDER BY a.created_at DESC
+       LIMIT 50`,
+      [task_id]
+    );
+    const auditEntries = (auditResult.rows || []).map((r) => ({
+      type: 'audit',
+      id: r.id,
+      action: r.action,
+      actor_user_id: r.actor_user_id,
+      actor_name: r.actor_name || r.actor_phone || (r.actor_user_id ? `${String(r.actor_user_id).slice(0, 8)}…` : null),
+      meta: r.meta,
+      created_at: r.created_at,
+    }));
+
+    const timeline = [...stateEntries, ...auditEntries]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    res.json({ task: taskDetail, timeline });
   } catch (error) {
     next(error);
   }
@@ -192,9 +351,9 @@ router.get('/users', pagination, async (req, res, next) => {
 
 /**
  * POST /api/v1/admin/users/:user_id/suspend
- * Suspend user
+ * Suspend user (admin only; ops cannot perform user-management actions)
  */
-router.post('/users/:user_id/suspend', async (req, res, next) => {
+router.post('/users/:user_id/suspend', requireAdminOnly, async (req, res, next) => {
   try {
     const { user_id } = req.params;
     const { reason } = req.body;
@@ -225,9 +384,9 @@ router.post('/users/:user_id/suspend', async (req, res, next) => {
 
 /**
  * POST /api/v1/admin/users/:user_id/unsuspend
- * Unsuspend user
+ * Unsuspend user (admin only; ops cannot perform user-management actions)
  */
-router.post('/users/:user_id/unsuspend', async (req, res, next) => {
+router.post('/users/:user_id/unsuspend', requireAdminOnly, async (req, res, next) => {
   try {
     const { user_id } = req.params;
 
@@ -339,36 +498,90 @@ router.post('/disputes/:dispute_id/resolve', async (req, res, next) => {
 
 /**
  * GET /api/v1/admin/metrics
- * Get platform metrics
+ * US-A-018: Marketplace metrics. US-A-019: ?by=city for city-level. US-A-004: fill_rate, time_to_accept_avg.
  */
 router.get('/metrics', async (req, res, next) => {
   try {
-    const { start_date, end_date } = req.query;
-
-    const dateFilter = start_date && end_date 
-      ? `WHERE created_at BETWEEN '${start_date}' AND '${end_date}'`
-      : '';
+    const { start_date, end_date, by: groupBy } = req.query;
+    const dateFilter = start_date && end_date ? ' AND created_at BETWEEN $1 AND $2' : '';
+    const dateParams = start_date && end_date ? [start_date, end_date] : [];
 
     const [tasks, bookings, users, revenue] = await Promise.all([
-      pool.query(`SELECT COUNT(*) as count, state FROM tasks ${dateFilter} GROUP BY state`),
-      pool.query(`SELECT COUNT(*) as count, status FROM bookings ${dateFilter} GROUP BY status`),
-      pool.query(`SELECT COUNT(*) as count, role FROM users ${dateFilter} GROUP BY role`),
-      pool.query(`
-        SELECT COALESCE(SUM(agreed_rate_amount), 0) as total
-        FROM bookings 
-        WHERE status = 'completed' ${dateFilter ? `AND created_at BETWEEN '${start_date}' AND '${end_date}'` : ''}
-      `)
+      pool.query(`SELECT COUNT(*)::int as count, state FROM tasks WHERE 1=1 ${dateFilter} GROUP BY state`, dateParams),
+      pool.query(`SELECT COUNT(*)::int as count, status FROM bookings WHERE 1=1 ${dateFilter} GROUP BY status`, dateParams),
+      pool.query(`SELECT COUNT(*)::int as count, role FROM users WHERE 1=1 ${dateFilter} GROUP BY role`, dateParams),
+      pool.query(`SELECT COALESCE(SUM(agreed_rate_amount), 0)::bigint as total FROM bookings WHERE status = 'completed' ${dateFilter}`, dateParams)
     ]);
 
-    res.json({
+    const totalTasks = tasks.rows.reduce((s, r) => s + Number(r.count), 0);
+    const completedLike = ['completed', 'settled', 'reviewed'];
+    const completedCount = tasks.rows
+      .filter(r => completedLike.includes(r.state))
+      .reduce((s, r) => s + Number(r.count), 0);
+    const fillRate = totalTasks > 0 ? (completedCount / totalTasks) : null;
+
+    let byCity = null;
+    if (groupBy === 'city') {
+      const cityResult = await pool.query(
+        `SELECT city, COUNT(*)::int as task_count FROM tasks WHERE 1=1 ${dateFilter} GROUP BY city ORDER BY task_count DESC`,
+        dateParams
+      );
+      byCity = cityResult.rows;
+    }
+
+    const out = {
       tasks: tasks.rows,
       bookings: bookings.rows,
       users: users.rows,
-      revenue: {
-        total: parseInt(revenue.rows[0].total),
-        currency: 'EGP'
-      }
-    });
+      revenue: { total: parseInt(revenue.rows[0]?.total || 0, 10), currency: 'EGP' },
+      fill_rate: fillRate,
+      by_city: byCity
+    };
+    res.json(out);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/admin/audit-log
+ * US-A-033: Audit log of admin actions (who, what, when)
+ */
+router.get('/audit-log', pagination, async (req, res, next) => {
+  try {
+    const { limit, cursor } = req.pagination;
+    const { action, target_type, actor_user_id } = req.query;
+    let query = `
+      SELECT al.id, al.actor_user_id, al.action, al.target_type, al.target_id, al.meta, al.created_at,
+             u.phone as actor_phone, u.full_name as actor_name
+      FROM audit_log al
+      LEFT JOIN users u ON u.id = al.actor_user_id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+    if (action) {
+      query += ` AND al.action = $${paramIndex++}`;
+      params.push(action);
+    }
+    if (target_type) {
+      query += ` AND al.target_type = $${paramIndex++}`;
+      params.push(target_type);
+    }
+    if (actor_user_id) {
+      query += ` AND al.actor_user_id = $${paramIndex++}`;
+      params.push(actor_user_id);
+    }
+    if (cursor) {
+      query += ` AND al.created_at < (SELECT created_at FROM audit_log WHERE id = $${paramIndex++})`;
+      params.push(cursor);
+    }
+    query += ` ORDER BY al.created_at DESC LIMIT $${paramIndex++}`;
+    params.push(limit + 1);
+    const result = await pool.query(query, params);
+    const items = result.rows.slice(0, limit);
+    const nextCursor = result.rows.length > limit ? items[items.length - 1].id : null;
+    res.json(formatPaginatedResponse(items, nextCursor));
   } catch (error) {
     next(error);
   }

@@ -87,6 +87,19 @@ const Navbar = ({ variant = 'auto' }) => {
           <div className="hidden md:flex items-center gap-4">
             {isDashboard ? (
               <>
+                {(user?.role === 'admin' || user?.role === 'ops') && (
+                  <>
+                    <Link to="/admin" className={`text-sm ${linkClass}`}>
+                      {i18n.language === 'ar' ? 'الإدارة' : 'Admin'}
+                    </Link>
+                    <Link to="/dashboard" className={`text-sm ${linkClass}`}>
+                      {t('task.myTasks')}
+                    </Link>
+                    <Link to="/dashboard/profile" className={`text-sm ${linkClass}`}>
+                      {t('profile.title')}
+                    </Link>
+                  </>
+                )}
                 {user?.role === 'tasker' && (
                   <>
                     <Link to="/dashboard/tasker" className={`text-sm ${linkClass}`}>
@@ -147,7 +160,7 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                   </>
                 )}
-                {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client')) && (
+                {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client' && user?.role !== 'admin' && user?.role !== 'ops')) && (
                   <>
                     <Link to="/dashboard" className={`text-sm ${linkClass}`}>
                       {t('task.myTasks')}
@@ -232,6 +245,19 @@ const Navbar = ({ variant = 'auto' }) => {
           <div className="px-4 pt-2 pb-4 space-y-3">
             {isDashboard ? (
               <>
+                {(user?.role === 'admin' || user?.role === 'ops') && (
+                  <>
+                    <Link to="/admin" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {i18n.language === 'ar' ? 'الإدارة' : 'Admin'}
+                    </Link>
+                    <Link to="/dashboard" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {t('task.myTasks')}
+                    </Link>
+                    <Link to="/dashboard/profile" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {t('profile.title')}
+                    </Link>
+                  </>
+                )}
                 {user?.role === 'tasker' && (
                   <>
                     <Link to="/dashboard/tasker" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
@@ -284,7 +310,7 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                   </>
                 )}
-                {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client')) && (
+                {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client' && user?.role !== 'admin' && user?.role !== 'ops')) && (
                   <>
                     <Link to="/dashboard" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('task.myTasks')}

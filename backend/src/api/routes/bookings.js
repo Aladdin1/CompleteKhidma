@@ -615,38 +615,63 @@ router.post('/:booking_id/status', authenticate, async (req, res, next) => {
         params
       );
 
-      // Update task state if needed
+      // Update task state if needed (fetch current task state once for task_state_events)
+      const taskStateRow = await client.query('SELECT state FROM tasks WHERE id = $1', [booking.task_id]);
+      const currentTaskState = taskStateRow.rows[0]?.state;
+
       if (status === 'accepted' && booking.status === 'offered') {
         // When booking transitions from 'offered' to 'accepted', update task state
         await client.query(
           'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
           ['accepted', booking.task_id]
         );
+        await client.query(
+          `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
+           VALUES (uuid_generate_v4(), $1, $2, 'accepted', $3)`,
+          [booking.task_id, currentTaskState, userId]
+        );
       } else if (status === 'in_progress') {
         await client.query(
           'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
           ['in_progress', booking.task_id]
+        );
+        await client.query(
+          `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
+           VALUES (uuid_generate_v4(), $1, $2, 'in_progress', $3)`,
+          [booking.task_id, currentTaskState, userId]
         );
       } else if (status === 'completed') {
         await client.query(
           'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
           ['completed', booking.task_id]
         );
+        await client.query(
+          `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
+           VALUES (uuid_generate_v4(), $1, $2, 'completed', $3)`,
+          [booking.task_id, currentTaskState, userId]
+        );
       } else if (status === 'disputed') {
         await client.query(
           'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
           ['disputed', booking.task_id]
         );
+        await client.query(
+          `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
+           VALUES (uuid_generate_v4(), $1, $2, 'disputed', $3)`,
+          [booking.task_id, currentTaskState, userId]
+        );
       } else if (status === 'canceled' && booking.status === 'offered') {
         // When canceling an 'offered' booking, keep task in matching state
-        // Task should remain available for other taskers
-        const taskResult = await client.query('SELECT state FROM tasks WHERE id = $1', [booking.task_id]);
-        const currentTaskState = taskResult.rows[0]?.state;
         if (currentTaskState && !['completed', 'settled', 'reviewed', 'canceled_by_client', 'canceled_by_tasker', 'disputed'].includes(currentTaskState)) {
           if (currentTaskState !== 'matching' && currentTaskState !== 'posted') {
             await client.query(
               'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
               ['matching', booking.task_id]
+            );
+            await client.query(
+              `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
+               VALUES (uuid_generate_v4(), $1, $2, 'matching', $3)`,
+              [booking.task_id, currentTaskState, userId]
             );
           }
         }
@@ -741,9 +766,16 @@ router.post('/:booking_id/cancel', authenticate, async (req, res, next) => {
 
       // Update task state
       const canceledBy = isClient ? 'canceled_by_client' : 'canceled_by_tasker';
+      const taskStateRow = await client.query('SELECT state FROM tasks WHERE id = $1', [booking.task_id]);
+      const currentTaskState = taskStateRow.rows[0]?.state;
       await client.query(
         'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
         [canceledBy, booking.task_id]
+      );
+      await client.query(
+        `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id, reason)
+         VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5)`,
+        [booking.task_id, currentTaskState, canceledBy, userId, reason || null]
       );
 
       // Log events

@@ -25,10 +25,11 @@ function OAuthCallbackPage() {
       try {
         const user = JSON.parse(userParam);
         setAuth(user, accessToken, refreshToken);
-        
-        // Redirect to dashboard or the original redirect location
-        const redirect = searchParams.get('redirect') || '/dashboard';
-        navigate(redirect, { replace: true });
+
+        const redirect = searchParams.get('redirect');
+        const isAdmin = user && (user.role === 'admin' || user.role === 'ops');
+        const destination = redirect || (isAdmin ? '/admin' : '/dashboard');
+        navigate(destination, { replace: true });
       } catch (err) {
         console.error('Failed to parse user data:', err);
         navigate('/login?error=oauth_parse_error', { replace: true });

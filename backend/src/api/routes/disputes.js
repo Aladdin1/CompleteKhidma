@@ -78,9 +78,16 @@ router.post('/', authenticate, idempotency, async (req, res, next) => {
       ['disputed', booking_id]
     );
 
+    const taskStateRow = await pool.query('SELECT state FROM tasks WHERE id = $1', [booking.task_id]);
+    const currentTaskState = taskStateRow.rows[0]?.state;
     await pool.query(
       'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
       ['disputed', booking.task_id]
+    );
+    await pool.query(
+      `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
+       VALUES (uuid_generate_v4(), $1, $2, 'disputed', $3)`,
+      [booking.task_id, currentTaskState, userId]
     );
 
     res.status(201).json(result.rows[0]);

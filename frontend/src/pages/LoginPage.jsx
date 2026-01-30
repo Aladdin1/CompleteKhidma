@@ -11,7 +11,7 @@ import { Button } from '../components/ui/button';
 function LoginPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { isAuthenticated, setAuth } = useAuthStore();
+  const { isAuthenticated, setAuth, user } = useAuthStore();
   const [step, setStep] = useState('phone'); // 'phone' or 'otp'
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -42,15 +42,17 @@ function LoginPage() {
     
     // Redirect if already authenticated
     if (isAuthenticated) {
+      const isAdmin = user && (user.role === 'admin' || user.role === 'ops');
       if (redirect) {
         navigate(redirect);
+      } else if (isAdmin) {
+        navigate('/admin');
       } else {
         navigate('/dashboard');
       }
     }
-    // Set RTL for Arabic
     document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
-  }, [isAuthenticated, navigate, i18n.language]);
+  }, [isAuthenticated, user, navigate, i18n.language]);
 
   const handleGoogleSignIn = async () => {
     setError('');

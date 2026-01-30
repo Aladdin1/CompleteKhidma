@@ -26,7 +26,13 @@ import TaskerViewPage from './pages/TaskerViewPage';
 import BecomeTaskerPage from './pages/BecomeTaskerPage';
 import MessagesPage from './pages/MessagesPage';
 import NotificationsPage from './pages/NotificationsPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminTasksPage from './pages/AdminTasksPage';
+import AdminUsersPage from './pages/AdminUsersPage';
+import AdminDisputesPage from './pages/AdminDisputesPage';
+import AdminAuditLogPage from './pages/AdminAuditLogPage';
 import Layout from './components/Layout';
+import AdminLayout from './components/AdminLayout';
 import { Toaster } from './components/ui/toaster';
 
 function TaskIdRedirect() {
@@ -61,6 +67,24 @@ function App() {
         <Route path="/book/:serviceId" element={<BookTask />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<OAuthCallbackPage />} />
+
+        {/* Admin Routes (admin or ops role required) */}
+        <Route
+          path="/admin"
+          element={
+            <PrivateRoute>
+              <RoleBasedRoute allowedRoles={['admin', 'ops']}>
+                <AdminLayout />
+              </RoleBasedRoute>
+            </PrivateRoute>
+          }
+        >
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="tasks" element={<AdminTasksPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="disputes" element={<AdminDisputesPage />} />
+          <Route path="audit-log" element={<AdminAuditLogPage />} />
+        </Route>
 
         {/* Authenticated Routes */}
         <Route

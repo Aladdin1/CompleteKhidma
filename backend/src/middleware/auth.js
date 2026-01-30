@@ -169,3 +169,29 @@ export const requireRole = (...roles) => {
     next();
   };
 };
+
+/**
+ * Restrict to platform admin only (role === 'admin').
+ * Use for user-management endpoints (suspend, ban, etc.); ops can use operational endpoints only.
+ */
+export const requireAdminOnly = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Authentication required'
+      }
+    });
+  }
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'This action requires platform admin role. Ops can use tasks, metrics, and disputes only.',
+        current_role: req.user.role,
+        required_role: 'admin'
+      }
+    });
+  }
+  next();
+};
