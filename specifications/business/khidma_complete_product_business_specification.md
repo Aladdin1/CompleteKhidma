@@ -286,6 +286,49 @@ To become the default operating system for local, on-demand human labor.
 - **US-A-019**: As an operations manager, I want to see city-level performance, so that I can optimize by location.
 - **US-A-020**: As an operations manager, I want to see tasker and client retention metrics, so that I can improve engagement.
 
+#### Category & Catalog Management
+- **US-A-021**: As a platform admin, I want to create, edit, and disable task categories and subcategories, so that the catalog stays accurate and usable.
+- **US-A-022**: As a platform admin, I want to set default pricing rules or fee structure per category, so that pricing is consistent and configurable.
+
+#### Platform Configuration
+- **US-A-023**: As a platform admin, I want to configure platform fee rates and rules (e.g. by category or region), so that monetization can be tuned without code changes.
+- **US-A-024**: As a platform admin, I want to set cancellation windows and fee rules (client and tasker), so that cancellation policy is clear and enforceable.
+- **US-A-025**: As a platform admin, I want to adjust matching parameters (e.g. radius, exposure caps, new-tasker boost), so that fill rates and fairness can be optimized.
+
+#### Support Ticket & Case Management
+- **US-A-026**: As a support agent, I want to see and filter all support tickets (by status, user, type), so that I can prioritize and assign work.
+- **US-A-027**: As a support agent, I want to update ticket status, add notes, and assign tickets to agents, so that cases are resolved and handoffs are clear.
+- **US-A-028**: As a support agent, I want to see a user's full task and payment history when handling their ticket, so that I can resolve issues without leaving the tool.
+
+#### Promotions & Referrals
+- **US-A-029**: As a platform admin, I want to create and manage promo codes (value, validity, conditions), so that campaigns and discounts are under control.
+- **US-A-030**: As a platform admin, I want to configure referral rules and rewards (who gets what, when), so that referral programs are manageable.
+
+#### Content Moderation
+- **US-A-031**: As a content moderator, I want to review and approve or reject tasker portfolio items and profile content, so that quality and policy are enforced.
+- **US-A-032**: As a content moderator, I want to review reported messages or reviews and hide or remove violating content, so that harmful or policy-breaking content is handled.
+
+#### Audit & Compliance
+- **US-A-033**: As a platform admin, I want an audit log of admin actions (who did what, when), so that we can investigate issues and meet compliance.
+- **US-A-034**: As a platform admin, I want to export data for legal, regulatory, or tax requirements, so that we can fulfill reporting and subject-access requests.
+
+#### Admin Identity & Access
+- **US-A-035**: As a platform admin, I want to sign in to the admin panel with strong authentication (e.g. MFA), so that admin access is secure.
+- **US-A-036**: As a super admin, I want to invite or revoke admin users and assign roles (e.g. support, trust & safety, operations), so that access is limited by responsibility.
+
+#### Communications & Outreach
+- **US-A-037**: As an operations admin, I want to send in-app or push announcements to segments (e.g. all taskers in a city), so that we can run campaigns and communicate policy.
+
+#### Report Exports
+- **US-A-038**: As an operations manager, I want to run reports for custom date ranges and export them (e.g. CSV/Excel), so that I can analyze and share data with stakeholders.
+
+#### Re-do & Satisfaction Guarantee
+- **US-A-039**: As a support agent or operations admin, I want to approve or deny re-do requests and apply the satisfaction guarantee according to policy, so that guarantees are applied consistently.
+- **US-A-040**: As a platform admin, I want to configure re-do eligibility (time windows, categories, conditions), so that the guarantee policy is clear and manageable.
+
+#### Community Moderation
+- **US-A-041**: As a trust & safety agent, I want to review "report or warn others about a user" submissions and decide whether to apply a platform warning or badge, so that community reporting is moderated and not abusive.
+
 ---
 
 ### 4.4 System-Level User Stories

@@ -102,9 +102,16 @@ router.post('/', authenticate, idempotency, async (req, res, next) => {
     );
 
     if (parseInt(reviewCount.rows[0].count) >= 2) {
+      const taskRow = await pool.query('SELECT state FROM tasks WHERE id = $1', [booking.task_id]);
+      const currentTaskState = taskRow.rows[0]?.state;
       await pool.query(
         'UPDATE tasks SET state = $1, updated_at = now() WHERE id = $2',
         ['reviewed', booking.task_id]
+      );
+      await pool.query(
+        `INSERT INTO task_state_events (id, task_id, from_state, to_state, actor_user_id)
+         VALUES (uuid_generate_v4(), $1, $2, 'reviewed', $3)`,
+        [booking.task_id, currentTaskState, userId]
       );
     }
 

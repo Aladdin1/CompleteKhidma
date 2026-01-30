@@ -551,4 +551,77 @@ export const notificationsAPI = {
   },
 };
 
+// Admin API (requires admin or ops role)
+export const adminAPI = {
+  getMetrics: async (params = {}) => {
+    const response = await api.get('admin/metrics', { params });
+    return response.data;
+  },
+
+  getTasks: async (params = {}) => {
+    const response = await api.get('admin/tasks', { params });
+    return response.data;
+  },
+
+  getUsers: async (params = {}) => {
+    const response = await api.get('admin/users', { params });
+    return response.data;
+  },
+
+  getBookings: async (params = {}) => {
+    const response = await api.get('admin/bookings', { params });
+    return response.data;
+  },
+
+  getDisputes: async (params = {}) => {
+    const response = await api.get('admin/disputes', { params });
+    return response.data;
+  },
+
+  assignTask: async (taskId, taskerId, reason) => {
+    const response = await api.post(`admin/tasks/${taskId}/assign`, {
+      tasker_id: taskerId,
+      reason,
+    });
+    return response.data;
+  },
+
+  suspendUser: async (userId, reason) => {
+    const response = await api.post(`admin/users/${userId}/suspend`, { reason });
+    return response.data;
+  },
+
+  unsuspendUser: async (userId) => {
+    const response = await api.post(`admin/users/${userId}/unsuspend`);
+    return response.data;
+  },
+
+  resolveDispute: async (disputeId, resolution, refundAmount) => {
+    const response = await api.post(`admin/disputes/${disputeId}/resolve`, {
+      resolution,
+      refund_amount: refundAmount,
+    });
+    return response.data;
+  },
+
+  cancelTaskOnBehalf: async (taskId, reason) => {
+    const response = await api.post(`admin/tasks/${taskId}/cancel`, { reason });
+    return response.data;
+  },
+
+  getTaskHistory: async (taskId) => {
+    const response = await api.get(`admin/tasks/${taskId}/history`);
+    return response.data;
+  },
+
+  getAuditLog: async (params = {}) => {
+    const response = await api.get('admin/audit-log', { params });
+    return response.data;
+  },
+};
+
+/** True if user has admin or ops role */
+export const isAdminRole = (user) =>
+  user && (user.role === 'admin' || user.role === 'ops');
+
 export default api;

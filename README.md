@@ -139,10 +139,21 @@ Copy `backend/.env.example` to `backend/.env` and configure:
 
 ## 🧪 Testing
 
+**Backend** (Jest + Supertest, API integration):
+
 ```bash
 cd backend
 npm test
 ```
+
+**Frontend** (Vitest + React Testing Library):
+
+```bash
+cd frontend
+npm test
+```
+
+See `VERIFICATION_STRATEGY.md` and `USER_STORY_TRACEABILITY_MATRIX.md` for user-story verification.
 
 ## 📚 Documentation
 
