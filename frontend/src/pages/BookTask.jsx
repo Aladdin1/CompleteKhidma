@@ -292,7 +292,7 @@ const BookTask = () => {
                     </h4>
                     <ul className="text-sm text-gray-600 space-y-1">
                       <li>• {i18n.language === 'ar' ? 'مهمات ماهر ومعتمد' : 'Skilled & vetted Tasker'}</li>
-                      <li>• {i18n.language === 'ar' ? 'ضمان KHIDMA للسعادة' : 'KHIDMA Happiness Pledge'}</li>
+                      <li>• {i18n.language === 'ar' ? 'ضمان KhidmaMart للسعادة' : 'KhidmaMart Happiness Pledge'}</li>
                       <li>• {i18n.language === 'ar' ? 'حماية الدفع الآمن' : 'Secure payment protection'}</li>
                       <li>• {i18n.language === 'ar' ? 'دعم العملاء على مدار الساعة' : '24/7 customer support'}</li>
                     </ul>

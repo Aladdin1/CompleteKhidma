@@ -237,7 +237,7 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              {i18n.language === 'ar' ? 'لماذا KHIDMA؟' : 'Why KHIDMA?'}
+              {i18n.language === 'ar' ? 'لماذا KhidmaMart؟' : 'Why KhidmaMart?'}
             </h2>
           </div>
 
@@ -309,8 +309,8 @@ const LandingPage = () => {
           </h2>
           <p className="text-xl text-white/90 mb-8">
             {i18n.language === 'ar'
-              ? 'انضم إلى آلاف الأشخاص الذين يحصلون على الأشياء المنجزة مع KHIDMA'
-              : 'Join thousands of people getting things done with KHIDMA'}
+              ? 'انضم إلى آلاف الأشخاص الذين يحصلون على الأشياء المنجزة مع KhidmaMart'
+              : 'Join thousands of people getting things done with KhidmaMart'}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 

@@ -10,8 +10,8 @@ i18n
       ar: {
         translation: {
           app: {
-            name: 'خدمة',
-            tagline: 'منصة خدمات عند الطلب'
+            name: 'KhidmaMart',
+            tagline: 'سوق الخدمات الخاص بك'
           },
           dashboard: {
             quickAccess: 'الوصول السريع'
@@ -321,8 +321,8 @@ i18n
       en: {
         translation: {
           app: {
-            name: 'KHIDMA',
-            tagline: 'On-demand Services Platform'
+            name: 'KhidmaMart',
+            tagline: 'Your Service Marketplace'
           },
           dashboard: {
             quickAccess: 'Quick Access'

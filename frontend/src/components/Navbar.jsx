@@ -75,11 +75,23 @@ const Navbar = ({ variant = 'auto' }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">K</span>
+            <Link to="/" className="flex items-center shrink-0">
+              <img
+                src="/logo.png"
+                alt={t('app.name')}
+                className="h-12 sm:h-14 w-auto object-contain object-left"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+              <div className="flex items-center space-x-2 hidden fallback-logo">
+                <span className="text-lg font-bold">
+                  <span className="text-[#ea580c]">Khidma</span>
+                  <span className="text-[#1e3a8a]">Mart</span>
+                </span>
+                <span className="text-[10px] text-gray-500 hidden sm:inline">— {t('app.tagline')}</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">{t('app.name')}</span>
             </Link>
           </div>
 
