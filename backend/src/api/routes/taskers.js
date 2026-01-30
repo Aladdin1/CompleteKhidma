@@ -50,7 +50,7 @@ router.get('/list', optionalAuth, async (req, res, next) => {
        JOIN tasker_profiles tp ON tp.user_id = u.id
        JOIN tasker_categories tc ON tc.tasker_id = u.id AND LOWER(TRIM(tc.category)) = $1
        WHERE u.role = 'tasker'
-         AND tp.status IN ('applied', 'verified', 'active')
+         AND tp.status IN ('verified', 'active')
        ORDER BY tp.rating_avg DESC NULLS LAST, tp.rating_count DESC
        LIMIT $2`,
       [slug, limit]
@@ -1039,27 +1039,111 @@ router.post('/apply', authenticate, idempotency, async (req, res, next) => {
 
 /**
  * GET /api/v1/taskers/me/application-status
- * Get application status
+ * Get application status (including rejection reason and verification info)
  */
 router.get('/me/application-status', authenticate, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
     const result = await pool.query(
-      'SELECT status FROM tasker_profiles WHERE user_id = $1',
+      `SELECT tp.status, tp.rejection_reason, tp.rejected_at,
+              uv.verification_status, uv.verified_at, uv.national_id_last4
+       FROM tasker_profiles tp
+       LEFT JOIN user_verifications uv ON uv.user_id = tp.user_id
+       WHERE tp.user_id = $1`,
       [userId]
     );
 
     if (result.rows.length === 0) {
       return res.json({
         applied: false,
-        status: null
+        status: null,
+        rejection_reason: null,
+        rejected_at: null,
+        verification_status: null,
+        verified_at: null
       });
     }
 
+    const row = result.rows[0];
     res.json({
       applied: true,
-      status: result.rows[0].status
+      status: row.status,
+      rejection_reason: row.rejection_reason,
+      rejected_at: row.rejected_at,
+      verification_status: row.verification_status || 'unverified',
+      verified_at: row.verified_at,
+      national_id_last4: row.national_id_last4
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/taskers/me/verification
+ * Submit identity verification info (e.g. national ID last 4 digits) for admin review.
+ */
+router.post('/me/verification', authenticate, requireRole('tasker'), async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { national_id_last4 } = z.object({
+      national_id_last4: z.string().length(4, 'Must be exactly 4 digits').regex(/^\d{4}$/, 'Must be digits only')
+    }).parse(req.body);
+
+    await pool.query(
+      `INSERT INTO user_verifications (user_id, phone_verified, national_id_last4, updated_at)
+       VALUES ($1, true, $2, now())
+       ON CONFLICT (user_id) DO UPDATE SET
+         national_id_last4 = EXCLUDED.national_id_last4,
+         updated_at = now()`,
+      [userId, national_id_last4]
+    );
+
+    res.json({
+      message: 'Verification info submitted. An admin will review your application.',
+      national_id_last4: national_id_last4
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/taskers/me/resubmit
+ * Clear rejection and resubmit application for admin review (status remains applied).
+ */
+router.post('/me/resubmit', authenticate, requireRole('tasker'), async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const existing = await pool.query(
+      'SELECT status, rejected_at FROM tasker_profiles WHERE user_id = $1',
+      [userId]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(400).json({
+        error: { code: 'NO_PROFILE', message: 'No tasker application found' }
+      });
+    }
+
+    if (existing.rows[0].rejected_at == null) {
+      return res.status(400).json({
+        error: { code: 'NOT_REJECTED', message: 'Application was not rejected; nothing to resubmit' }
+      });
+    }
+
+    await pool.query(
+      `UPDATE tasker_profiles
+       SET rejection_reason = NULL, rejected_at = NULL, updated_at = now()
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    res.json({
+      message: 'Application resubmitted for review',
+      status: 'applied'
     });
   } catch (error) {
     next(error);

@@ -143,6 +143,9 @@ const Navbar = ({ variant = 'auto' }) => {
                     <Link to="/dashboard/tasker/profile" className={`text-sm ${linkClass}`}>
                       {i18n.language === 'ar' ? 'ملفي' : 'Profile'}
                     </Link>
+                    <Link to="/dashboard/tasker/application-status" className={`text-sm ${linkClass}`}>
+                      {i18n.language === 'ar' ? 'حالة التحقق' : 'Verification status'}
+                    </Link>
                   </>
                 )}
                 {user?.role === 'client' && (
@@ -296,6 +299,9 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                     <Link to="/dashboard/tasker/profile" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {i18n.language === 'ar' ? 'ملفي' : 'Profile'}
+                    </Link>
+                    <Link to="/dashboard/tasker/application-status" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {i18n.language === 'ar' ? 'حالة التحقق' : 'Verification status'}
                     </Link>
                   </>
                 )}

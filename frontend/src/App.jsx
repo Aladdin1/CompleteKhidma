@@ -31,6 +31,8 @@ import AdminTasksPage from './pages/AdminTasksPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminDisputesPage from './pages/AdminDisputesPage';
 import AdminAuditLogPage from './pages/AdminAuditLogPage';
+import AdminPendingTaskersPage from './pages/AdminPendingTaskersPage';
+import TaskerApplicationStatusPage from './pages/TaskerApplicationStatusPage';
 import Layout from './components/Layout';
 import AdminLayout from './components/AdminLayout';
 import { Toaster } from './components/ui/toaster';
@@ -83,6 +85,7 @@ function App() {
           <Route path="tasks" element={<AdminTasksPage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="disputes" element={<AdminDisputesPage />} />
+          <Route path="taskers/pending" element={<AdminPendingTaskersPage />} />
           <Route path="audit-log" element={<AdminAuditLogPage />} />
         </Route>
 
@@ -169,6 +172,14 @@ function App() {
             element={
               <RoleBasedRoute allowedRoles={['tasker']}>
                 <TaskerProfilePage />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="tasker/application-status"
+            element={
+              <RoleBasedRoute allowedRoles={['tasker']}>
+                <TaskerApplicationStatusPage />
               </RoleBasedRoute>
             }
           />
