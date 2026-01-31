@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Calendar, ArrowLeft } from 'lucide-react';
 import { taskAPI, userAPI } from '../services/api';
+import useAuthStore from '../store/authStore';
+import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
+const PENDING_TASK_KEY = 'pendingTaskCreate';
 
 const CATEGORIES = [
   { key: 'cleaning', name: 'Cleaning', symbol: '🧹' },
@@ -25,7 +29,11 @@ const CATEGORIES = [
 function TaskCreatePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { isAuthenticated } = useAuthStore();
+  const isPublic = location.pathname === '/tasks/create';
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [addresses, setAddresses] = useState([]);
@@ -45,17 +53,17 @@ function TaskCreatePage() {
     bid_mode: 'invite_only', // 'open_for_bids' | 'invite_only' (US-C-101/102/103)
   });
 
-  useEffect(() => {
-    loadAddresses();
-  }, []);
-
-  const loadAddresses = async () => {
+  const loadAddresses = useCallback(async () => {
+    if (!isAuthenticated) {
+      setAddressMode('manual');
+      setLoadingAddresses(false);
+      return;
+    }
     try {
       setLoadingAddresses(true);
       const savedAddresses = await userAPI.getAddresses();
       setAddresses(savedAddresses);
-      
-      // Set default address if available
+
       const defaultAddress = savedAddresses.find(addr => addr.is_default);
       if (defaultAddress) {
         setSelectedAddressId(defaultAddress.id);
@@ -74,7 +82,52 @@ function TaskCreatePage() {
     } finally {
       setLoadingAddresses(false);
     }
-  };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    loadAddresses();
+  }, [loadAddresses]);
+
+  // After login: restore pending task and submit
+  useEffect(() => {
+    if (!isAuthenticated || !searchParams.get('pending')) return;
+    const raw = sessionStorage.getItem(PENDING_TASK_KEY);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      sessionStorage.removeItem(PENDING_TASK_KEY);
+      setFormData(data);
+      setError('');
+      setLoading(true);
+      const taskData = {
+        category: data.category,
+        description: data.description,
+        location: {
+          address: data.address,
+          city: data.city,
+          district: data.district || undefined,
+          point: { lat: data.lat, lng: data.lng },
+        },
+        schedule: {
+          starts_at: new Date(data.starts_at).toISOString(),
+          flexibility_minutes: parseInt(data.flexibility_minutes) || 0,
+        },
+      };
+      taskAPI.create(taskData)
+        .then((task) =>
+          taskAPI.post(task.id, { bid_mode: data.bid_mode || 'invite_only' }).then(() => task)
+        )
+        .then((task) => navigate(`/dashboard/tasks/${task.id}`))
+        .catch((err) => {
+          const errorMessage = err.response?.data?.error?.message || err.message || 'Failed to create task';
+          const errorCode = err.response?.data?.error?.code;
+          setError(`${errorMessage}${errorCode ? ` (${errorCode})` : ''}`);
+        })
+        .finally(() => setLoading(false));
+    } catch (_) {
+      sessionStorage.removeItem(PENDING_TASK_KEY);
+    }
+  }, [isAuthenticated, searchParams, navigate]);
 
   const populateAddressFields = (address) => {
     setFormData(prev => ({
@@ -109,8 +162,15 @@ function TaskCreatePage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
+    // Login required only at final step: redirect to login and save form for after auth
+    if (!isAuthenticated) {
+      sessionStorage.setItem(PENDING_TASK_KEY, JSON.stringify(formData));
+      navigate(`/login?redirect=${encodeURIComponent('/tasks/create?pending=1')}`);
+      return;
+    }
+
+    setLoading(true);
     try {
       const taskData = {
         category: formData.category,
@@ -131,10 +191,7 @@ function TaskCreatePage() {
       };
 
       const task = await taskAPI.create(taskData);
-
-      // Post task with bid_mode choice (US-C-101/102/103)
       await taskAPI.post(task.id, { bid_mode: formData.bid_mode || 'invite_only' });
-
       navigate(`/dashboard/tasks/${task.id}`);
     } catch (err) {
       console.error('Task creation error:', err);
@@ -155,14 +212,16 @@ function TaskCreatePage() {
     }
   };
 
-  return (
+  const backTarget = isPublic ? '/' : '/dashboard';
+
+  const content = (
     <div className="space-y-6 max-w-3xl mx-auto">
       {/* Page Header */}
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate(backTarget)}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -394,7 +453,7 @@ function TaskCreatePage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate(backTarget)}
                 disabled={loading}
               >
                 {t('task.cancel')}
@@ -408,6 +467,18 @@ function TaskCreatePage() {
       </Card>
     </div>
   );
+
+  if (isPublic) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Navbar />
+        <div className="flex-1 py-8 px-4">
+          {content}
+        </div>
+      </div>
+    );
+  }
+  return content;
 }
 
 export default TaskCreatePage;

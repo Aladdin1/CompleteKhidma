@@ -65,6 +65,7 @@ function App() {
         <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/become-tasker" element={<BecomeTaskerPublic />} />
         <Route path="/book/:serviceId" element={<BookTask />} />
+        <Route path="/tasks/create" element={<TaskCreatePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<OAuthCallbackPage />} />
 
@@ -97,14 +98,6 @@ function App() {
         >
           {/* Client routes */}
           <Route index element={<DashboardPage />} />
-          <Route
-            path="tasks/create"
-            element={
-              <RoleBasedRoute allowedRoles={['client']}>
-                <TaskCreatePage />
-              </RoleBasedRoute>
-            }
-          />
           <Route path="tasks/:taskId" element={<TaskDetailPage />} />
           <Route path="taskers/:taskerId" element={<TaskerViewPage />} />
           <Route path="profile" element={<ProfilePage />} />
@@ -175,7 +168,7 @@ function App() {
         </Route>
 
         {/* Redirect old routes to new structure */}
-        <Route path="/tasks/create" element={<Navigate to="/dashboard/tasks/create" replace />} />
+        <Route path="/dashboard/tasks/create" element={<Navigate to="/tasks/create" replace />} />
         <Route 
           path="/tasks/:taskId" 
           element={<TaskIdRedirect />} 

@@ -138,7 +138,7 @@ const Navbar = ({ variant = 'auto' }) => {
                     <Link to="/dashboard" className={`text-sm ${linkClass}`}>
                       {t('task.myTasks')}
                     </Link>
-                    <Link to="/dashboard/tasks/create" className={`text-sm ${linkClass}`}>
+                    <Link to="/tasks/create" className={`text-sm ${linkClass}`}>
                       {t('task.create')}
                     </Link>
                     <Link to="/dashboard/messages" className={`relative text-sm ${linkClass}`}>
@@ -292,7 +292,7 @@ const Navbar = ({ variant = 'auto' }) => {
                     <Link to="/dashboard" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('task.myTasks')}
                     </Link>
-                    <Link to="/dashboard/tasks/create" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                    <Link to="/tasks/create" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('task.create')}
                     </Link>
                     <Link to="/dashboard/messages" className={`block py-2 ${linkClass}`} onClick={closeMobile}>

@@ -24,30 +24,15 @@ const LandingPage = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    // Redirect to login, then to task creation with search query
-    if (isAuthenticated) {
-      navigate('/dashboard/tasks/create');
-    } else {
-      navigate(`/login?redirect=/dashboard/tasks/create`);
-    }
+    navigate('/tasks/create');
   };
 
   const handleCategoryClick = (categoryId) => {
-    // If authenticated, go directly to task creation with category pre-selected
-    // If not, go to login first, then task creation
-    if (isAuthenticated) {
-      navigate(`/dashboard/tasks/create?category=${categoryId}`);
-    } else {
-      navigate(`/login?redirect=/dashboard/tasks/create?category=${categoryId}`);
-    }
+    navigate(`/tasks/create?category=${categoryId}`);
   };
 
   const handleCreateTask = () => {
-    if (isAuthenticated) {
-      navigate('/dashboard/tasks/create');
-    } else {
-      navigate('/login?redirect=/dashboard/tasks/create');
-    }
+    navigate('/tasks/create');
   };
 
   const displayedServices = services.slice(0, 8);

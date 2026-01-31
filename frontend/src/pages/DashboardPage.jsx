@@ -166,7 +166,7 @@ function DashboardPage() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">{t('task.myTasks')}</h1>
-        <Button onClick={() => navigate('/dashboard/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
+        <Button onClick={() => navigate('/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
           <Plus className="mr-2 h-4 w-4" />
           {t('task.create')}
         </Button>
@@ -334,7 +334,7 @@ function DashboardPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-gray-500 mb-4">{t('task.noTasks')}</p>
-            <Button onClick={() => navigate('/dashboard/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
+            <Button onClick={() => navigate('/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
               <Plus className="mr-2 h-4 w-4" />
               {t('task.create')}
             </Button>

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, useNavigate, Link, useSearchParams, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, MapPin, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
 import useAuthStore from '@/store/authStore';
 import { taskAPI } from '@/services/api';
+
+const PENDING_BOOK_KEY = 'pendingBook';
 
 const BookTask = () => {
   const { serviceId } = useParams();
@@ -34,54 +36,68 @@ const BookTask = () => {
   });
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const doSubmit = async (data) => {
     setLoading(true);
-
     try {
-      // Create task using KHIDMA API
       const taskData = {
         category: serviceId,
-        description: formData.details,
+        description: data.details,
         location: {
-          address: formData.address,
-          city: formData.city,
-          district: formData.district || undefined,
-          point: {
-            lat: 30.0444, // Default Cairo coordinates - in real app, use geocoding
-            lng: 31.2357,
-          },
+          address: data.address,
+          city: data.city,
+          district: data.district || undefined,
+          point: { lat: 30.0444, lng: 31.2357 },
         },
         schedule: {
-          starts_at: new Date(`${formData.date}T${formData.time}`).toISOString(),
-          flexibility_minutes: 60, // Default 1 hour flexibility
+          starts_at: new Date(`${data.date}T${data.time}`).toISOString(),
+          flexibility_minutes: 60,
         },
       };
-
       const task = await taskAPI.create(taskData);
-      
-      // Post task immediately
       await taskAPI.post(task.id);
-      
       toast({
         title: i18n.language === 'ar' ? 'تم حجز المهمة بنجاح!' : 'Task booked successfully!',
-        description: i18n.language === 'ar' 
+        description: i18n.language === 'ar'
           ? 'سيتم التواصل معك من قبل المهمات قريباً.'
           : 'Your Tasker will be in touch shortly.',
       });
-      
       setTimeout(() => navigate(`/dashboard/tasks/${task.id}`), 2000);
     } catch (err) {
       console.error('Booking error:', err);
       toast({
         title: i18n.language === 'ar' ? 'خطأ' : 'Error',
-        description: err.response?.data?.error?.message || 
+        description: err.response?.data?.error?.message ||
           (i18n.language === 'ar' ? 'فشل في حجز المهمة' : 'Failed to book task'),
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated || !searchParams.get('pending')) return;
+    const raw = sessionStorage.getItem(PENDING_BOOK_KEY);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      sessionStorage.removeItem(PENDING_BOOK_KEY);
+      doSubmit(data);
+    } catch (_) {
+      sessionStorage.removeItem(PENDING_BOOK_KEY);
+    }
+  }, [isAuthenticated, searchParams]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      sessionStorage.setItem(PENDING_BOOK_KEY, JSON.stringify(formData));
+      const redirect = `/book/${serviceId}${selectedTaskerId ? `?tasker=${selectedTaskerId}` : ''}`;
+      const returnUrl = `${redirect}${redirect.includes('?') ? '&' : '?'}pending=1`;
+      navigate(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+      return;
+    }
+    await doSubmit(formData);
   };
 
   const handleChange = (e) => {
@@ -110,11 +126,6 @@ const BookTask = () => {
         <Footer />
       </div>
     );
-  }
-
-  const redirect = `/book/${serviceId}${selectedTaskerId ? `?tasker=${selectedTaskerId}` : ''}`;
-  if (!isAuthenticated) {
-    return <Navigate to={`/login?redirect=${encodeURIComponent(redirect)}`} replace />;
   }
 
   return (

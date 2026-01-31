@@ -220,49 +220,22 @@ const ServiceDetails = () => {
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                          {isAuthenticated ? (
-                            <Link
-                              to={`/book/${service.id}?tasker=${tasker.user_id || tasker.id}`}
-                              className="flex-1"
-                            >
-                              <Button className="w-full bg-teal-600 hover:bg-teal-700">
-                                {i18n.language === 'ar' ? 'اختر ومتابعة' : 'Select & Continue'}
-                              </Button>
-                            </Link>
-                          ) : (
-                            <Button
-                              className="flex-1 w-full bg-teal-600 hover:bg-teal-700"
-                              onClick={() =>
-                                navigate(
-                                  `/login?redirect=${encodeURIComponent(
-                                    `/book/${service.id}?tasker=${tasker.user_id || tasker.id}`
-                                  )}`
-                                )
-                              }
-                            >
-                              {i18n.language === 'ar' ? 'سجّل الدخول للاستمرار' : 'Log in to continue'}
+                          <Link
+                            to={`/book/${service.id}?tasker=${tasker.user_id || tasker.id}`}
+                            className="flex-1"
+                          >
+                            <Button className="w-full bg-teal-600 hover:bg-teal-700">
+                              {i18n.language === 'ar' ? 'اختر ومتابعة' : 'Select & Continue'}
                             </Button>
-                          )}
-                          {isAuthenticated ? (
-                            <Link
-                              to={`/dashboard/taskers/${tasker.user_id || tasker.id}`}
-                              className="flex-1"
-                            >
-                              <Button variant="outline" className="w-full">
-                                {i18n.language === 'ar' ? 'عرض الملف الشخصي' : 'View Profile'}
-                              </Button>
-                            </Link>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              className="flex-1"
-                              onClick={() =>
-                                navigate(`/login?redirect=${encodeURIComponent(`/dashboard/taskers/${tasker.user_id || tasker.id}`)}`)
-                              }
-                            >
+                          </Link>
+                          <Link
+                            to={isAuthenticated ? `/dashboard/taskers/${tasker.user_id || tasker.id}` : `/login?redirect=${encodeURIComponent(`/dashboard/taskers/${tasker.user_id || tasker.id}`)}`}
+                            className="flex-1"
+                          >
+                            <Button variant="outline" className="w-full">
                               {i18n.language === 'ar' ? 'عرض الملف الشخصي' : 'View Profile'}
                             </Button>
-                          )}
+                          </Link>
                         </div>
                       </div>
                     </div>
