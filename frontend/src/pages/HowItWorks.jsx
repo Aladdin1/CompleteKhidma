@@ -18,7 +18,7 @@ const HowItWorks = () => {
         <section className="bg-gradient-to-br from-teal-50 to-blue-50 py-16">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h1 className="text-5xl font-bold text-gray-900 mb-6">
-              {i18n.language === 'ar' ? 'كيف يعمل KHIDMA' : 'How KHIDMA Works'}
+              {i18n.language === 'ar' ? 'كيف يعمل KhidmaMart' : 'How KhidmaMart Works'}
             </h1>
             <p className="text-xl text-gray-700">
               {i18n.language === 'ar' 
@@ -172,7 +172,7 @@ const HowItWorks = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-4xl font-bold text-gray-900 mb-4">
-                {i18n.language === 'ar' ? 'لماذا يحب الناس KHIDMA' : 'Why people love KHIDMA'}
+                {i18n.language === 'ar' ? 'لماذا يحب الناس KhidmaMart' : 'Why people love KhidmaMart'}
               </h2>
               <p className="text-xl text-gray-600">
                 {i18n.language === 'ar' ? 'موثوق به من قبل آلاف العملاء' : 'Trusted by thousands of customers'}
@@ -249,8 +249,8 @@ const HowItWorks = () => {
             </h2>
             <p className="text-xl text-white/90 mb-8">
               {i18n.language === 'ar'
-                ? 'ابدأ اليوم واستمتع براحة KHIDMA'
-                : 'Get started today and experience the convenience of KHIDMA'}
+                ? 'ابدأ اليوم واستمتع براحة KhidmaMart'
+                : 'Get started today and experience the convenience of KhidmaMart'}
             </p>
             <Link to="/services">
               <Button size="lg" className="bg-white text-teal-600 hover:bg-gray-100 px-8">

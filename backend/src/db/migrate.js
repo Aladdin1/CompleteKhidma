@@ -16,7 +16,8 @@ const MIGRATIONS = [
   '007_user_payment_methods.sql',
   '008_oauth_support.sql',
   '009_task_bids.sql',
-  '010_task_bid_mode.sql'
+  '010_task_bid_mode.sql',
+  '011_tasker_verification_workflow.sql'
 ];
 
 async function migrate() {

@@ -412,6 +412,263 @@ router.post('/users/:user_id/unsuspend', requireAdminOnly, async (req, res, next
 });
 
 /**
+ * GET /api/v1/admin/taskers/pending
+ * List taskers pending verification (status = applied). US-A-008.
+ */
+router.get('/taskers/pending', pagination, async (req, res, next) => {
+  try {
+    const { limit, cursor } = req.pagination;
+    const { include_rejected } = req.query;
+
+    let query = `
+      SELECT tp.user_id, tp.status, tp.bio, tp.created_at, tp.updated_at,
+             tp.rejection_reason, tp.rejected_at,
+             u.phone, u.email, u.full_name, u.locale,
+             uv.phone_verified, uv.verification_status, uv.national_id_last4, uv.verified_at
+      FROM tasker_profiles tp
+      JOIN users u ON u.id = tp.user_id
+      LEFT JOIN user_verifications uv ON uv.user_id = tp.user_id
+      WHERE tp.status = 'applied'
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (include_rejected !== 'true') {
+      query += ` AND tp.rejected_at IS NULL`;
+    }
+
+    if (cursor) {
+      query += ` AND tp.created_at > $${paramIndex++}`;
+      params.push(cursor);
+    }
+
+    query += ` ORDER BY tp.created_at ASC LIMIT $${paramIndex++}`;
+    params.push(limit + 1);
+
+    const result = await pool.query(query, params);
+    const rows = result.rows.slice(0, limit);
+    const nextCursor = result.rows.length > limit ? rows[rows.length - 1].created_at : null;
+
+    const items = rows.map((row) => ({
+      user_id: row.user_id,
+      full_name: row.full_name || row.phone || '—',
+      phone: row.phone,
+      email: row.email,
+      bio: row.bio,
+      status: row.status,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      rejection_reason: row.rejection_reason,
+      rejected_at: row.rejected_at,
+      phone_verified: row.phone_verified || false,
+      verification_status: row.verification_status || 'unverified',
+      national_id_last4: row.national_id_last4,
+    }));
+
+    res.json(formatPaginatedResponse(items, nextCursor));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/admin/taskers/:user_id
+ * Get tasker detail for verification review (categories, skills, service area).
+ */
+router.get('/taskers/:user_id', async (req, res, next) => {
+  try {
+    const { user_id } = req.params;
+
+    const profileResult = await pool.query(
+      `SELECT tp.*, u.phone, u.email, u.full_name, u.locale,
+              uv.phone_verified, uv.verification_status, uv.national_id_last4, uv.verified_at
+       FROM tasker_profiles tp
+       JOIN users u ON u.id = tp.user_id
+       LEFT JOIN user_verifications uv ON uv.user_id = tp.user_id
+       WHERE tp.user_id = $1`,
+      [user_id]
+    );
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Tasker not found' }
+      });
+    }
+
+    const row = profileResult.rows[0];
+
+    const [categoriesResult, skillsResult, areaResult] = await Promise.all([
+      pool.query('SELECT category FROM tasker_categories WHERE tasker_id = $1', [user_id]),
+      pool.query('SELECT skill FROM tasker_skills WHERE tasker_id = $1', [user_id]),
+      pool.query(
+        'SELECT center_lat, center_lng, radius_km FROM tasker_service_areas WHERE tasker_id = $1',
+        [user_id]
+      )
+    ]);
+
+    const profile = {
+      user_id: row.user_id,
+      full_name: row.full_name || row.phone || '—',
+      phone: row.phone,
+      email: row.email,
+      bio: row.bio,
+      status: row.status,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      rejection_reason: row.rejection_reason,
+      rejected_at: row.rejected_at,
+      phone_verified: row.phone_verified || false,
+      verification_status: row.verification_status || 'unverified',
+      national_id_last4: row.national_id_last4,
+      verified_at: row.verified_at,
+      categories: categoriesResult.rows.map((r) => r.category),
+      skills: skillsResult.rows.map((r) => r.skill),
+      service_area:
+        areaResult.rows.length > 0
+          ? {
+              center: {
+                lat: parseFloat(areaResult.rows[0].center_lat),
+                lng: parseFloat(areaResult.rows[0].center_lng)
+              },
+              radius_km: parseFloat(areaResult.rows[0].radius_km)
+            }
+          : null
+    };
+
+    res.json(profile);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/taskers/:user_id/verify
+ * Approve tasker application (admin only). Sets tasker status to verified and user_verifications.verification_status to verified.
+ */
+router.post('/taskers/:user_id/verify', requireAdminOnly, async (req, res, next) => {
+  try {
+    const { user_id } = req.params;
+
+    const profileResult = await pool.query(
+      'SELECT status FROM tasker_profiles WHERE user_id = $1',
+      [user_id]
+    );
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Tasker not found' }
+      });
+    }
+
+    if (profileResult.rows[0].status !== 'applied') {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_STATE',
+          message: 'Only taskers with status applied can be verified'
+        }
+      });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `UPDATE tasker_profiles
+         SET status = 'verified', rejection_reason = NULL, rejected_at = NULL, updated_at = now()
+         WHERE user_id = $1`,
+        [user_id]
+      );
+
+      await client.query(
+        `INSERT INTO user_verifications (user_id, phone_verified, verification_status, verified_at, updated_at)
+         VALUES ($1, true, 'verified', now(), now())
+         ON CONFLICT (user_id) DO UPDATE SET
+           verification_status = 'verified',
+           verified_at = now(),
+           updated_at = now()`,
+        [user_id]
+      );
+
+      await client.query(
+        `INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
+         VALUES (uuid_generate_v4(), $1, 'verify_tasker', 'user', $2)`,
+        [req.user.id, user_id]
+      );
+
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    res.json({
+      message: 'Tasker verified successfully',
+      user_id,
+      status: 'verified'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/taskers/:user_id/reject
+ * Reject tasker application (admin only). Stores reason; tasker can resubmit.
+ */
+router.post('/taskers/:user_id/reject', requireAdminOnly, async (req, res, next) => {
+  try {
+    const { user_id } = req.params;
+    const { reason } = z.object({
+      reason: z.string().min(1, 'Rejection reason is required')
+    }).parse(req.body || {});
+
+    const profileResult = await pool.query(
+      'SELECT status FROM tasker_profiles WHERE user_id = $1',
+      [user_id]
+    );
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Tasker not found' }
+      });
+    }
+
+    if (profileResult.rows[0].status !== 'applied') {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_STATE',
+          message: 'Only taskers with status applied can be rejected'
+        }
+      });
+    }
+
+    await pool.query(
+      `UPDATE tasker_profiles
+       SET rejection_reason = $1, rejected_at = now(), updated_at = now()
+       WHERE user_id = $2`,
+      [reason, user_id]
+    );
+
+    await pool.query(
+      `INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, meta)
+       VALUES (uuid_generate_v4(), $1, 'reject_tasker', 'user', $2, $3)`,
+      [req.user.id, user_id, JSON.stringify({ reason })]
+    );
+
+    res.json({
+      message: 'Tasker application rejected',
+      user_id,
+      rejection_reason: reason
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/v1/admin/disputes
  * List all disputes
  */

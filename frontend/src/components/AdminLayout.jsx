@@ -1,11 +1,12 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, Users, AlertCircle, ArrowLeft, FileText } from 'lucide-react';
+import { LayoutDashboard, ListTodo, Users, AlertCircle, ArrowLeft, FileText, UserCheck } from 'lucide-react';
 import Navbar from './Navbar';
 
 const adminNav = [
   { path: '/admin', labelEn: 'Dashboard', labelAr: 'لوحة التحكم', icon: LayoutDashboard },
   { path: '/admin/tasks', labelEn: 'Tasks', labelAr: 'المهام', icon: ListTodo },
   { path: '/admin/users', labelEn: 'Users', labelAr: 'المستخدمين', icon: Users },
+  { path: '/admin/taskers/pending', labelEn: 'Pending taskers', labelAr: 'المهمات قيد المراجعة', icon: UserCheck },
   { path: '/admin/disputes', labelEn: 'Disputes', labelAr: 'النزاعات', icon: AlertCircle },
   { path: '/admin/audit-log', labelEn: 'Audit log', labelAr: 'سجل التدقيق', icon: FileText },
 ];

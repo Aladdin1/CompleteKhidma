@@ -699,7 +699,7 @@ router.get('/:task_id/available-taskers', authenticate, requireRole('client'), a
        JOIN tasker_profiles tp ON tp.user_id = u.id
        JOIN tasker_categories tc ON tc.tasker_id = u.id AND LOWER(TRIM(tc.category)) = $1
        WHERE u.role = 'tasker'
-         AND tp.status IN ('applied', 'verified', 'active')
+         AND tp.status IN ('verified', 'active')
        ORDER BY tp.rating_avg DESC NULLS LAST, tp.rating_count DESC
        LIMIT $2`,
       [slug, limit]
@@ -1256,7 +1256,7 @@ router.get('/:task_id/candidates', authenticate, requireRole('client'), paginati
       if (result.rows.length === 0) {
         console.log(`No taskers found for task ${task_id} with category "${task.category}"`);
         console.log('This might be because:');
-        console.log('- No taskers have profiles with status verified/active/applied');
+        console.log('- No taskers have profiles with status verified/active');
         console.log('- All taskers are already assigned to this task');
         console.log('- Task category does not match any tasker categories');
       } else {

@@ -290,6 +290,21 @@ export const taskerAPI = {
     return response.data;
   },
 
+  getApplicationStatus: async () => {
+    const response = await api.get('/taskers/me/application-status');
+    return response.data;
+  },
+
+  submitVerification: async (national_id_last4) => {
+    const response = await api.post('/taskers/me/verification', { national_id_last4 });
+    return response.data;
+  },
+
+  resubmitApplication: async () => {
+    const response = await api.post('/taskers/me/resubmit');
+    return response.data;
+  },
+
   getProfile: async () => {
     const response = await api.get('/taskers/me/profile');
     return response.data;
@@ -565,6 +580,26 @@ export const adminAPI = {
 
   getUsers: async (params = {}) => {
     const response = await api.get('admin/users', { params });
+    return response.data;
+  },
+
+  getPendingTaskers: async (params = {}) => {
+    const response = await api.get('admin/taskers/pending', { params });
+    return response.data;
+  },
+
+  getTaskerDetail: async (userId) => {
+    const response = await api.get(`admin/taskers/${userId}`);
+    return response.data;
+  },
+
+  verifyTasker: async (userId) => {
+    const response = await api.post(`admin/taskers/${userId}/verify`);
+    return response.data;
+  },
+
+  rejectTasker: async (userId, reason) => {
+    const response = await api.post(`admin/taskers/${userId}/reject`, { reason });
     return response.data;
   },
 
