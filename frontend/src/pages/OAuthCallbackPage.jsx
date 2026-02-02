@@ -27,8 +27,8 @@ function OAuthCallbackPage() {
         setAuth(user, accessToken, refreshToken);
 
         const redirect = searchParams.get('redirect');
-        const isAdmin = user && (user.role === 'admin' || user.role === 'ops');
-        const destination = redirect || (isAdmin ? '/admin' : '/dashboard');
+        const isAdminOrSupport = user && (user.role === 'admin' || user.role === 'ops' || user.role === 'customer_service');
+        const destination = redirect || (isAdminOrSupport ? '/admin' : '/dashboard');
         navigate(destination, { replace: true });
       } catch (err) {
         console.error('Failed to parse user data:', err);

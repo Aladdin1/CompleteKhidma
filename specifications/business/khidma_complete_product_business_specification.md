@@ -299,6 +299,15 @@ To become the default operating system for local, on-demand human labor.
 - **US-A-026**: As a support agent, I want to see and filter all support tickets (by status, user, type), so that I can prioritize and assign work.
 - **US-A-027**: As a support agent, I want to update ticket status, add notes, and assign tickets to agents, so that cases are resolved and handoffs are clear.
 - **US-A-028**: As a support agent, I want to see a user's full task and payment history when handling their ticket, so that I can resolve issues without leaving the tool.
+- **US-A-042**: As a support agent, I want to create a new support ticket for a user (with subject, priority, and optional category/type), so that we can track the case from first contact (e.g. call, chat, email).
+- **US-A-043**: As a support agent, I want to assign a category or type to tickets (e.g. billing, technical, account, dispute-related), so that I can filter, route, and report by category.
+- **US-A-044**: As a support agent, I want to link a support ticket to a specific task or dispute when the case is about that task or dispute, so that I have full context in one place.
+- **US-A-045**: As a support agent, I want to reopen a resolved or closed ticket when the user follows up, so that we keep one thread and do not lose context.
+- **US-A-046**: As a support agent, I want to add a short resolution summary when closing or resolving a ticket, so that we have a clear record of how the case was resolved.
+- **US-A-047**: As a support agent, I want to send a reply or update to the user from the ticket (e.g. by email or in-app message), so that the user is informed without switching tools.
+- **US-A-048**: As a support agent, I want to escalate a ticket (e.g. reassign to a senior agent or specialist, or raise priority), so that complex or urgent cases get the right attention.
+- **US-A-049**: As a support agent, I want to quickly see tickets assigned to me and their status and priority, so that I can manage my own workload.
+- **US-A-050**: As a support agent or operations manager, I want to see or set a due date or SLA for a ticket (e.g. first response by X hours), so that we can meet response and resolution targets.
 
 #### Promotions & Referrals
 - **US-A-029**: As a platform admin, I want to create and manage promo codes (value, validity, conditions), so that campaigns and discounts are under control.

@@ -42,10 +42,10 @@ function LoginPage() {
     
     // Redirect if already authenticated
     if (isAuthenticated) {
-      const isAdmin = user && (user.role === 'admin' || user.role === 'ops');
+      const isAdminOrSupport = user && (user.role === 'admin' || user.role === 'ops' || user.role === 'customer_service');
       if (redirect) {
         navigate(redirect);
-      } else if (isAdmin) {
+      } else if (isAdminOrSupport) {
         navigate('/admin');
       } else {
         navigate('/dashboard');

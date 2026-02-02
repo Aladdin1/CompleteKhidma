@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { adminAPI } from '../services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,10 +24,13 @@ const UNFILLED_OPTS = [
 const cancelableStates = ['draft', 'posted', 'matching', 'offered', 'accepted', 'confirmed'];
 
 function AdminTasksPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const taskIdFromUrl = searchParams.get('taskId');
   const [data, setData] = useState({ items: [], next_cursor: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [unfilledMinutes, setUnfilledMinutes] = useState('');
+  const [activeOnly, setActiveOnly] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [assignTaskId, setAssignTaskId] = useState(null);
   const [taskers, setTaskers] = useState([]);
@@ -42,21 +46,43 @@ function AdminTasksPage() {
       setLoading(true);
       setError('');
       const params = { limit: 50 };
+      if (activeOnly) params.active_only = 'true';
       if (unfilledMinutes) params.unfilled_minutes = unfilledMinutes;
       const res = await adminAPI.getTasks(params);
       setData({ items: res.items || [], next_cursor: res.next_cursor ?? null });
     } catch (err) {
       const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to load tasks';
       const status = err.response?.status;
-      setError(status === 403 ? 'Access denied. You must be logged in as admin or ops.' : status === 401 ? 'Session expired or not logged in.' : msg);
+      setError(status === 403 ? (err.response?.data?.error?.message || 'Access denied.') : status === 401 ? 'Session expired or not logged in.' : msg);
     } finally {
       setLoading(false);
     }
-  }, [unfilledMinutes]);
+  }, [unfilledMinutes, activeOnly]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Open task details when navigating from support ticket (e.g. /admin/tasks?taskId=xxx)
+  useEffect(() => {
+    if (taskIdFromUrl) {
+      setHistoryTaskId(taskIdFromUrl);
+      setHistoryTask(null);
+      setHistoryTimeline([]);
+      setHistoryLoading(true);
+      adminAPI
+        .getTaskHistory(taskIdFromUrl)
+        .then((res) => {
+          setHistoryTask(res.task || null);
+          setHistoryTimeline(res.timeline || []);
+        })
+        .catch(() => {
+          setHistoryTask(null);
+          setHistoryTimeline([]);
+        })
+        .finally(() => setHistoryLoading(false));
+    }
+  }, [taskIdFromUrl]);
 
   const handleCancelOnBehalf = async (taskId) => {
     try {
@@ -153,20 +179,32 @@ function AdminTasksPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tasks</h1>
-          <p className="text-slate-600 mt-1">All platform tasks. US-A-002: filter by unfilled minutes.</p>
+          <p className="text-slate-600 mt-1">All platform tasks. Filter by active status or unfilled time.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="unfilled" className="text-sm text-slate-600">Unfilled</Label>
-          <select
-            id="unfilled"
-            value={unfilledMinutes}
-            onChange={(e) => setUnfilledMinutes(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-          >
-            {UNFILLED_OPTS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="activeOnly"
+              checked={activeOnly}
+              onChange={(e) => setActiveOnly(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            <Label htmlFor="activeOnly" className="text-sm text-slate-600 cursor-pointer">Active only</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="unfilled" className="text-sm text-slate-600">Unfilled</Label>
+            <select
+              id="unfilled"
+              value={unfilledMinutes}
+              onChange={(e) => setUnfilledMinutes(e.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            >
+              {UNFILLED_OPTS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -296,7 +334,15 @@ function AdminTasksPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!historyTaskId} onOpenChange={(open) => !open && setHistoryTaskId(null)}>
+      <Dialog
+        open={!!historyTaskId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHistoryTaskId(null);
+            if (taskIdFromUrl) setSearchParams({});
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Task details & history</DialogTitle>

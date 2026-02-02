@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { adminAPI } from '../services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -122,8 +123,11 @@ function AdminDisputesPage() {
                         <td className="py-2 pr-4">{d.status}</td>
                         <td className="py-2 pr-4">{d.created_at ? new Date(d.created_at).toLocaleDateString() : '—'}</td>
                         <td className="py-2">
-                          {canResolve && (
-                            <>
+                          <div className="flex gap-1 flex-wrap">
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link to={`/admin/disputes/${d.id}`}>View</Link>
+                            </Button>
+                            {canResolve && (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -132,44 +136,8 @@ function AdminDisputesPage() {
                               >
                                 Resolve
                               </Button>
-                              <Dialog open={resolveId === d.id} onOpenChange={(open) => !open && setResolveId(null)}>
-                                <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Resolve dispute</DialogTitle>
-                                  <DialogDescription>Set resolution and optional refund amount.</DialogDescription>
-                                </DialogHeader>
-                                <div className="grid gap-4 py-4">
-                                  <div className="grid gap-2">
-                                    <Label>Resolution</Label>
-                                    <Textarea
-                                      value={resolution}
-                                      onChange={(e) => setResolution(e.target.value)}
-                                      placeholder="Describe the resolution and outcome."
-                                      rows={4}
-                                    />
-                                  </div>
-                                  <div className="grid gap-2">
-                                    <Label>Refund amount (optional)</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={refundAmount}
-                                      onChange={(e) => setRefundAmount(e.target.value)}
-                                      placeholder="0"
-                                    />
-                                  </div>
-                                </div>
-                                <DialogFooter>
-                                  <Button variant="outline" onClick={() => setResolveId(null)}>Cancel</Button>
-                                  <Button onClick={submitResolve} disabled={!resolution.trim() || actionLoading === d.id}>
-                                    {actionLoading === d.id ? '…' : 'Resolve'}
-                                  </Button>
-                                </DialogFooter>
-                                </DialogContent>
-                              </Dialog>
-                            </>
-                          )}
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -180,6 +148,43 @@ function AdminDisputesPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!resolveId} onOpenChange={(open) => !open && setResolveId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resolve dispute</DialogTitle>
+            <DialogDescription>Set resolution and optional refund amount.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Resolution</Label>
+              <Textarea
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value)}
+                placeholder="Describe the resolution and outcome."
+                rows={4}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Refund amount (optional)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResolveId(null)}>Cancel</Button>
+            <Button onClick={submitResolve} disabled={!resolution.trim() || actionLoading === resolveId}>
+              {actionLoading === resolveId ? '…' : 'Resolve'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
