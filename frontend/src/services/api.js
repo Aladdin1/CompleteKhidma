@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/?$/, '/');
 
 // Create axios instance
 const api = axios.create({
@@ -578,6 +578,13 @@ export const adminAPI = {
     return response.data;
   },
 
+  /** Tasks for a specific user (client or tasker). User id in path so filter cannot be lost. */
+  getTasksForUser: async (userId, params = {}) => {
+    if (!userId) return { items: [] };
+    const response = await api.get(`admin/users/${encodeURIComponent(userId)}/tasks`, { params: { limit: params.limit || 100 } });
+    return response.data;
+  },
+
   getUsers: async (params = {}) => {
     const response = await api.get('admin/users', { params });
     return response.data;
@@ -658,27 +665,26 @@ export const adminAPI = {
     return response.data;
   },
 
-  createSupportTicket: async (userId, subject, priority = 'medium') => {
-    const response = await api.post('admin/support-tickets', {
-      user_id: userId,
-      subject,
-      priority,
-    });
+  createSupportTicket: async (userId, subject, priority = 'medium', type = null, dueAt = null) => {
+    const payload = { user_id: userId, subject, priority };
+    if (type) payload.type = type;
+    if (dueAt) payload.due_at = dueAt;
+    const response = await api.post('admin/support-tickets', payload);
     return response.data;
   },
 
-  updateSupportTicket: async (ticketId, { status, assigned_to }) => {
-    const response = await api.patch(`admin/support-tickets/${ticketId}`, {
-      status,
-      assigned_to,
-    });
+  updateSupportTicket: async (ticketId, updates) => {
+    const response = await api.patch(`admin/support-tickets/${ticketId}`, updates);
     return response.data;
   },
 
-  addSupportTicketNote: async (ticketId, body) => {
-    const response = await api.post(`admin/support-tickets/${ticketId}/notes`, { body });
+  addSupportTicketNote: async (ticketId, body, sentToUser = false) => {
+    const response = await api.post(`admin/support-tickets/${ticketId}/notes`, { body, sent_to_user: sentToUser });
     return response.data;
   },
+
+  /** Ticket type options for filters and create (US-A-043). */
+  SUPPORT_TICKET_TYPES: ['billing', 'technical', 'account', 'dispute', 'general', 'other'],
 
   resolveDispute: async (disputeId, resolution, refundAmount) => {
     const response = await api.post(`admin/disputes/${disputeId}/resolve`, {

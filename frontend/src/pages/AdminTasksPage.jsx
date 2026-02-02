@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { adminAPI } from '../services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,8 @@ const UNFILLED_OPTS = [
 const cancelableStates = ['draft', 'posted', 'matching', 'offered', 'accepted', 'confirmed'];
 
 function AdminTasksPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const taskIdFromUrl = searchParams.get('taskId');
   const [data, setData] = useState({ items: [], next_cursor: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -59,6 +62,27 @@ function AdminTasksPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Open task details when navigating from support ticket (e.g. /admin/tasks?taskId=xxx)
+  useEffect(() => {
+    if (taskIdFromUrl) {
+      setHistoryTaskId(taskIdFromUrl);
+      setHistoryTask(null);
+      setHistoryTimeline([]);
+      setHistoryLoading(true);
+      adminAPI
+        .getTaskHistory(taskIdFromUrl)
+        .then((res) => {
+          setHistoryTask(res.task || null);
+          setHistoryTimeline(res.timeline || []);
+        })
+        .catch(() => {
+          setHistoryTask(null);
+          setHistoryTimeline([]);
+        })
+        .finally(() => setHistoryLoading(false));
+    }
+  }, [taskIdFromUrl]);
 
   const handleCancelOnBehalf = async (taskId) => {
     try {
@@ -310,7 +334,15 @@ function AdminTasksPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!historyTaskId} onOpenChange={(open) => !open && setHistoryTaskId(null)}>
+      <Dialog
+        open={!!historyTaskId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHistoryTaskId(null);
+            if (taskIdFromUrl) setSearchParams({});
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Task details & history</DialogTitle>

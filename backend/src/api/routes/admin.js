@@ -82,11 +82,26 @@ router.post('/tasks/:task_id/assign', async (req, res, next) => {
  * List all tasks.
  * US-A-001: ?active_only=true shows only active tasks (posted, matching, offered, accepted, confirmed, in_progress)
  * US-A-002: ?unfilled_minutes=N shows tasks posted/matching for ≥N minutes with no accept.
+ * ?client_id=uuid returns tasks where this user is the client OR the tasker (for support ticket task picker).
  */
 router.get('/tasks', pagination, async (req, res, next) => {
   try {
     const { limit, cursor } = req.pagination;
-    const { state, city, unfilled_minutes, active_only } = req.query;
+    const { state, city, unfilled_minutes, active_only, client_id } = req.query;
+
+    if (client_id) {
+      const maxLimit = Math.min(limit || 20, 100);
+      const unionQuery = `
+        (SELECT t.* FROM tasks t WHERE t.client_id = $1)
+        UNION
+        (SELECT t.* FROM tasks t INNER JOIN bookings b ON b.task_id = t.id WHERE b.tasker_id = $1)
+        ORDER BY created_at DESC LIMIT $2
+      `;
+      const result = await pool.query(unionQuery, [client_id, maxLimit + 1]);
+      const tasks = result.rows.slice(0, maxLimit).map((t) => ({ ...t, title: t.title ?? t.description }));
+      const nextCursor = result.rows.length > maxLimit ? tasks[tasks.length - 1].id : null;
+      return res.json(formatPaginatedResponse(tasks, nextCursor));
+    }
 
     let query = 'SELECT * FROM tasks WHERE 1=1';
     const params = [];
@@ -365,6 +380,31 @@ router.get('/users', pagination, async (req, res, next) => {
     const nextCursor = result.rows.length > limit ? users[users.length - 1].id : null;
 
     res.json(formatPaginatedResponse(users, nextCursor));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/admin/users/:user_id/tasks
+ * List tasks where this user is the client OR the tasker (for support ticket task picker). Path ensures filter is always applied.
+ */
+router.get('/users/:user_id/tasks', pagination, async (req, res, next) => {
+  try {
+    const { user_id } = req.params;
+    const { limit } = req.pagination;
+    const maxLimit = Math.min(limit || 100, 100);
+
+    const query = `
+      (SELECT t.id, t.description AS title, t.state, t.created_at FROM tasks t WHERE t.client_id = $1)
+      UNION
+      (SELECT t.id, t.description AS title, t.state, t.created_at FROM tasks t
+       INNER JOIN bookings b ON b.task_id = t.id WHERE b.tasker_id = $1)
+      ORDER BY created_at DESC LIMIT $2
+    `;
+    const result = await pool.query(query, [user_id, maxLimit]);
+    const tasks = result.rows;
+    res.json(formatPaginatedResponse(tasks, null));
   } catch (error) {
     next(error);
   }
@@ -1452,19 +1492,22 @@ router.get('/audit-log', pagination, async (req, res, next) => {
   }
 });
 
-// ============== Support Tickets (US-A-026, US-A-028) ==============
+// ============== Support Tickets (US-A-026, US-A-028, US-A-042–US-A-050) ==============
+
+const SUPPORT_TICKET_TYPES = ['billing', 'technical', 'account', 'dispute', 'general', 'other'];
 
 /**
  * GET /api/v1/admin/support-tickets
- * List support tickets with filters (status, user_id, assigned_to).
+ * List support tickets with filters (status, user_id, assigned_to, type, assigned_to_me, overdue).
  */
 router.get('/support-tickets', pagination, async (req, res, next) => {
   try {
     const { limit, cursor } = req.pagination;
-    const { status, user_id, assigned_to } = req.query;
+    const { status, user_id, assigned_to, type, assigned_to_me, overdue } = req.query;
     let query = `
       SELECT st.id, st.user_id, st.subject, st.status, st.priority, st.assigned_to,
              st.created_at, st.updated_at, st.closed_at,
+             st.type, st.task_id, st.dispute_id, st.resolution_summary, st.due_at,
              u.full_name AS user_name, u.phone AS user_phone, u.role AS user_role
       FROM support_tickets st
       JOIN users u ON u.id = st.user_id
@@ -1484,6 +1527,17 @@ router.get('/support-tickets', pagination, async (req, res, next) => {
       query += ` AND st.assigned_to = $${paramIndex++}`;
       params.push(assigned_to);
     }
+    if (assigned_to_me === 'true' || assigned_to_me === '1') {
+      query += ` AND st.assigned_to = $${paramIndex++}`;
+      params.push(req.user.id);
+    }
+    if (type) {
+      query += ` AND st.type = $${paramIndex++}`;
+      params.push(type);
+    }
+    if (overdue === 'true' || overdue === '1') {
+      query += ` AND st.due_at IS NOT NULL AND st.due_at < now() AND st.status NOT IN ('resolved', 'closed')`;
+    }
     if (cursor) {
       query += ` AND st.created_at < (SELECT created_at FROM support_tickets WHERE id = $${paramIndex++})`;
       params.push(cursor);
@@ -1502,6 +1556,7 @@ router.get('/support-tickets', pagination, async (req, res, next) => {
 /**
  * GET /api/v1/admin/support-tickets/:ticket_id
  * US-A-028: Ticket detail with user context (summary + link to full user detail).
+ * US-A-044: Includes linked task/dispute when present.
  */
 router.get('/support-tickets/:ticket_id', async (req, res, next) => {
   try {
@@ -1519,16 +1574,38 @@ router.get('/support-tickets/:ticket_id', async (req, res, next) => {
     const ticket = ticketResult.rows[0];
 
     const notesResult = await pool.query(
-      `SELECT n.id, n.body, n.created_at, u.full_name AS author_name, u.phone AS author_phone
+      `SELECT n.id, n.body, n.created_at, n.sent_to_user, u.full_name AS author_name, u.phone AS author_phone
        FROM support_ticket_notes n
        JOIN users u ON u.id = n.author_id
        WHERE n.ticket_id = $1 ORDER BY n.created_at ASC`,
       [ticket_id]
     );
 
+    // Linked task/dispute (US-A-044)
+    let linked_task = null;
+    let linked_dispute = null;
+    if (ticket.task_id) {
+      const taskRow = await pool.query(
+        'SELECT id, description AS title, state, client_id, created_at FROM tasks WHERE id = $1',
+        [ticket.task_id]
+      );
+      if (taskRow.rows.length > 0) {
+        linked_task = { id: taskRow.rows[0].id, title: taskRow.rows[0].title, state: taskRow.rows[0].state, created_at: taskRow.rows[0].created_at };
+      }
+    }
+    if (ticket.dispute_id) {
+      const disputeRow = await pool.query(
+        'SELECT id, status, created_at FROM disputes WHERE id = $1',
+        [ticket.dispute_id]
+      );
+      if (disputeRow.rows.length > 0) {
+        linked_dispute = { id: disputeRow.rows[0].id, status: disputeRow.rows[0].status, created_at: disputeRow.rows[0].created_at };
+      }
+    }
+
     // User context for support: task/payment summary (US-A-028)
     const userId = ticket.user_id;
-    const [taskCountResult, paymentResult] = await Promise.all([
+    const [taskCountResult, paymentResult, userTasksResult] = await Promise.all([
       pool.query(
         'SELECT state, COUNT(*)::int AS count FROM tasks WHERE client_id = $1 GROUP BY state',
         [userId]
@@ -1539,11 +1616,28 @@ router.get('/support-tickets/:ticket_id', async (req, res, next) => {
          FROM bookings b JOIN tasks t ON t.id = b.task_id
          WHERE (t.client_id = $1 OR b.tasker_id = $1) AND b.status = 'completed'`,
         [userId]
+      ),
+      pool.query(
+        `(SELECT t.id, t.description AS title, t.state, t.created_at FROM tasks t WHERE t.client_id = $1)
+         UNION
+         (SELECT t.id, t.description AS title, t.state, t.created_at FROM tasks t
+          INNER JOIN bookings b ON b.task_id = t.id WHERE b.tasker_id = $1)
+         ORDER BY created_at DESC LIMIT 100`,
+        [userId]
       )
     ]);
     const task_counts = taskCountResult.rows.reduce((acc, r) => { acc[r.state] = r.count; return acc; }, {});
     const total_tasks = taskCountResult.rows.reduce((s, r) => s + r.count, 0);
     const payment = paymentResult.rows[0];
+    const user_tasks = (userTasksResult.rows || []).map((r) => ({
+      id: r.id,
+      title: r.title || null,
+      state: r.state || null,
+      created_at: r.created_at
+    }));
+
+    // DEBUG: support ticket task list (remove when done debugging)
+    console.log('[SupportTicket DEBUG] ticket_id:', ticket_id, 'userId:', userId, 'user_tasks rows:', userTasksResult.rows?.length ?? 0, 'user_tasks.length:', user_tasks.length);
 
     res.json({
       ticket: {
@@ -1556,12 +1650,20 @@ router.get('/support-tickets/:ticket_id', async (req, res, next) => {
         created_at: ticket.created_at,
         updated_at: ticket.updated_at,
         closed_at: ticket.closed_at,
+        type: ticket.type || null,
+        task_id: ticket.task_id || null,
+        dispute_id: ticket.dispute_id || null,
+        resolution_summary: ticket.resolution_summary || null,
+        due_at: ticket.due_at || null,
         user_name: ticket.user_name,
         user_phone: ticket.user_phone,
         user_role: ticket.user_role,
         user_email: ticket.user_email
       },
       notes: notesResult.rows,
+      linked_task: linked_task,
+      linked_dispute: linked_dispute,
+      user_tasks: user_tasks,
       user_context: {
         user_id: userId,
         user_name: ticket.user_name,
@@ -1581,14 +1683,16 @@ router.get('/support-tickets/:ticket_id', async (req, res, next) => {
 
 /**
  * POST /api/v1/admin/support-tickets
- * Create support ticket (e.g. when user contacts support).
+ * Create support ticket (US-A-042; e.g. when user contacts support).
  */
 router.post('/support-tickets', async (req, res, next) => {
   try {
     const body = z.object({
       user_id: z.string().uuid(),
       subject: z.string().min(1),
-      priority: z.enum(['low', 'medium', 'high']).optional()
+      priority: z.enum(['low', 'medium', 'high']).optional(),
+      type: z.enum(SUPPORT_TICKET_TYPES).optional(),
+      due_at: z.string().datetime().optional().or(z.null())
     }).parse(req.body);
 
     const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [body.user_id]);
@@ -1598,9 +1702,9 @@ router.post('/support-tickets', async (req, res, next) => {
 
     const id = uuidv4();
     await pool.query(
-      `INSERT INTO support_tickets (id, user_id, subject, status, priority)
-       VALUES ($1, $2, $3, 'open', $4)`,
-      [id, body.user_id, body.subject, body.priority || 'medium']
+      `INSERT INTO support_tickets (id, user_id, subject, status, priority, type, due_at)
+       VALUES ($1, $2, $3, 'open', $4, $5, $6)`,
+      [id, body.user_id, body.subject, body.priority || 'medium', body.type || null, body.due_at || null]
     );
     res.status(201).json({
       id,
@@ -1608,6 +1712,8 @@ router.post('/support-tickets', async (req, res, next) => {
       subject: body.subject,
       status: 'open',
       priority: body.priority || 'medium',
+      type: body.type || null,
+      due_at: body.due_at || null,
       message: 'Support ticket created'
     });
   } catch (error) {
@@ -1617,21 +1723,28 @@ router.post('/support-tickets', async (req, res, next) => {
 
 /**
  * PATCH /api/v1/admin/support-tickets/:ticket_id
- * Update status, assigned_to.
+ * Update status, assigned_to, priority, type, task_id, dispute_id, resolution_summary, due_at (US-A-027, US-A-045, US-A-046, US-A-048).
+ * Reopen: setting status to open/in_progress clears closed_at.
  */
 router.patch('/support-tickets/:ticket_id', async (req, res, next) => {
   try {
     const { ticket_id } = req.params;
     const body = z.object({
       status: z.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
-      assigned_to: z.string().uuid().nullable().optional()
+      assigned_to: z.string().uuid().nullable().optional(),
+      priority: z.enum(['low', 'medium', 'high']).optional(),
+      type: z.enum(SUPPORT_TICKET_TYPES).nullable().optional(),
+      task_id: z.string().uuid().nullable().optional(),
+      dispute_id: z.string().uuid().nullable().optional(),
+      resolution_summary: z.string().nullable().optional(),
+      due_at: z.string().datetime().nullable().optional().or(z.null())
     }).safeParse(req.body);
 
     if (!body.success) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid body' } });
     }
 
-    const check = await pool.query('SELECT id FROM support_tickets WHERE id = $1', [ticket_id]);
+    const check = await pool.query('SELECT id, status FROM support_tickets WHERE id = $1', [ticket_id]);
     if (check.rows.length === 0) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Support ticket not found' } });
     }
@@ -1644,11 +1757,37 @@ router.patch('/support-tickets/:ticket_id', async (req, res, next) => {
       params.push(body.data.status);
       if (body.data.status === 'resolved' || body.data.status === 'closed') {
         updates.push('closed_at = now()');
+      } else {
+        updates.push('closed_at = NULL');
       }
     }
     if (body.data.assigned_to !== undefined) {
       updates.push(`assigned_to = $${paramIndex++}`);
       params.push(body.data.assigned_to);
+    }
+    if (body.data.priority !== undefined) {
+      updates.push(`priority = $${paramIndex++}`);
+      params.push(body.data.priority);
+    }
+    if (body.data.type !== undefined) {
+      updates.push(`type = $${paramIndex++}`);
+      params.push(body.data.type);
+    }
+    if (body.data.task_id !== undefined) {
+      updates.push(`task_id = $${paramIndex++}`);
+      params.push(body.data.task_id);
+    }
+    if (body.data.dispute_id !== undefined) {
+      updates.push(`dispute_id = $${paramIndex++}`);
+      params.push(body.data.dispute_id);
+    }
+    if (body.data.resolution_summary !== undefined) {
+      updates.push(`resolution_summary = $${paramIndex++}`);
+      params.push(body.data.resolution_summary);
+    }
+    if (body.data.due_at !== undefined) {
+      updates.push(`due_at = $${paramIndex++}`);
+      params.push(body.data.due_at);
     }
     if (updates.length === 0) {
       return res.json({ message: 'No changes' });
@@ -1667,25 +1806,45 @@ router.patch('/support-tickets/:ticket_id', async (req, res, next) => {
 
 /**
  * POST /api/v1/admin/support-tickets/:ticket_id/notes
- * Add note to ticket.
+ * Add note to ticket. US-A-047: sent_to_user=true creates in-app notification for the ticket user.
  */
 router.post('/support-tickets/:ticket_id/notes', async (req, res, next) => {
   try {
     const { ticket_id } = req.params;
-    const body = z.object({ body: z.string().min(1) }).parse(req.body);
+    const body = z.object({
+      body: z.string().min(1),
+      sent_to_user: z.boolean().optional()
+    }).parse(req.body);
 
-    const check = await pool.query('SELECT id FROM support_tickets WHERE id = $1', [ticket_id]);
-    if (check.rows.length === 0) {
+    const ticketRow = await pool.query(
+      'SELECT id, user_id, subject FROM support_tickets WHERE id = $1',
+      [ticket_id]
+    );
+    if (ticketRow.rows.length === 0) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Support ticket not found' } });
     }
+    const ticket = ticketRow.rows[0];
+    const sentToUser = !!body.sent_to_user;
 
     const id = uuidv4();
     await pool.query(
-      'INSERT INTO support_ticket_notes (id, ticket_id, author_id, body) VALUES ($1, $2, $3, $4)',
-      [id, ticket_id, req.user.id, body.body]
+      'INSERT INTO support_ticket_notes (id, ticket_id, author_id, body, sent_to_user) VALUES ($1, $2, $3, $4, $5)',
+      [id, ticket_id, req.user.id, body.body, sentToUser]
     );
+
+    if (sentToUser && ticket.user_id) {
+      const notifId = uuidv4();
+      const title = 'Support reply';
+      const notifBody = body.body.length > 200 ? body.body.slice(0, 197) + '...' : body.body;
+      await pool.query(
+        `INSERT INTO notifications (id, user_id, kind, title, body, data)
+         VALUES ($1, $2, 'support_ticket_reply', $3, $4, $5)`,
+        [notifId, ticket.user_id, title, notifBody, JSON.stringify({ ticket_id, ticket_subject: ticket.subject })]
+      );
+    }
+
     const noteResult = await pool.query(
-      'SELECT id, body, created_at FROM support_ticket_notes WHERE id = $1',
+      'SELECT id, body, created_at, sent_to_user FROM support_ticket_notes WHERE id = $1',
       [id]
     );
     res.status(201).json(noteResult.rows[0]);
