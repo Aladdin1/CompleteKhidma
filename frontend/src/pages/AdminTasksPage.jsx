@@ -27,6 +27,7 @@ function AdminTasksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [unfilledMinutes, setUnfilledMinutes] = useState('');
+  const [activeOnly, setActiveOnly] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [assignTaskId, setAssignTaskId] = useState(null);
   const [taskers, setTaskers] = useState([]);
@@ -42,6 +43,7 @@ function AdminTasksPage() {
       setLoading(true);
       setError('');
       const params = { limit: 50 };
+      if (activeOnly) params.active_only = 'true';
       if (unfilledMinutes) params.unfilled_minutes = unfilledMinutes;
       const res = await adminAPI.getTasks(params);
       setData({ items: res.items || [], next_cursor: res.next_cursor ?? null });
@@ -52,7 +54,7 @@ function AdminTasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [unfilledMinutes]);
+  }, [unfilledMinutes, activeOnly]);
 
   useEffect(() => {
     load();
@@ -153,20 +155,32 @@ function AdminTasksPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tasks</h1>
-          <p className="text-slate-600 mt-1">All platform tasks. US-A-002: filter by unfilled minutes.</p>
+          <p className="text-slate-600 mt-1">All platform tasks. Filter by active status or unfilled time.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="unfilled" className="text-sm text-slate-600">Unfilled</Label>
-          <select
-            id="unfilled"
-            value={unfilledMinutes}
-            onChange={(e) => setUnfilledMinutes(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-          >
-            {UNFILLED_OPTS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="activeOnly"
+              checked={activeOnly}
+              onChange={(e) => setActiveOnly(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            <Label htmlFor="activeOnly" className="text-sm text-slate-600 cursor-pointer">Active only</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="unfilled" className="text-sm text-slate-600">Unfilled</Label>
+            <select
+              id="unfilled"
+              value={unfilledMinutes}
+              onChange={(e) => setUnfilledMinutes(e.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            >
+              {UNFILLED_OPTS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

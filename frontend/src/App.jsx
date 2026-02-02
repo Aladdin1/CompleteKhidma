@@ -30,8 +30,10 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminTasksPage from './pages/AdminTasksPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminDisputesPage from './pages/AdminDisputesPage';
+import AdminDisputeDetailPage from './pages/AdminDisputeDetailPage';
 import AdminAuditLogPage from './pages/AdminAuditLogPage';
 import AdminPendingTaskersPage from './pages/AdminPendingTaskersPage';
+import AdminUserDetailPage from './pages/AdminUserDetailPage';
 import TaskerApplicationStatusPage from './pages/TaskerApplicationStatusPage';
 import Layout from './components/Layout';
 import AdminLayout from './components/AdminLayout';
@@ -85,7 +87,9 @@ function App() {
           <Route index element={<AdminDashboardPage />} />
           <Route path="tasks" element={<AdminTasksPage />} />
           <Route path="users" element={<AdminUsersPage />} />
+          <Route path="users/:userId" element={<AdminUserDetailPage />} />
           <Route path="disputes" element={<AdminDisputesPage />} />
+          <Route path="disputes/:disputeId" element={<AdminDisputeDetailPage />} />
           <Route path="taskers/pending" element={<AdminPendingTaskersPage />} />
           <Route path="audit-log" element={<AdminAuditLogPage />} />
         </Route>

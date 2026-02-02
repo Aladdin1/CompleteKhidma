@@ -100,17 +100,9 @@ const Navbar = ({ variant = 'auto' }) => {
             {isDashboard ? (
               <>
                 {(user?.role === 'admin' || user?.role === 'ops') && (
-                  <>
-                    <Link to="/admin" className={`text-sm ${linkClass}`}>
-                      {i18n.language === 'ar' ? 'الإدارة' : 'Admin'}
-                    </Link>
-                    <Link to="/dashboard" className={`text-sm ${linkClass}`}>
-                      {t('task.myTasks')}
-                    </Link>
-                    <Link to="/dashboard/profile" className={`text-sm ${linkClass}`}>
-                      {t('profile.title')}
-                    </Link>
-                  </>
+                  <Link to="/admin" className={`text-sm ${linkClass}`}>
+                    Admin
+                  </Link>
                 )}
                 {user?.role === 'tasker' && (
                   <>
@@ -261,17 +253,9 @@ const Navbar = ({ variant = 'auto' }) => {
             {isDashboard ? (
               <>
                 {(user?.role === 'admin' || user?.role === 'ops') && (
-                  <>
-                    <Link to="/admin" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
-                      {i18n.language === 'ar' ? 'الإدارة' : 'Admin'}
-                    </Link>
-                    <Link to="/dashboard" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
-                      {t('task.myTasks')}
-                    </Link>
-                    <Link to="/dashboard/profile" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
-                      {t('profile.title')}
-                    </Link>
-                  </>
+                  <Link to="/admin" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                    Admin
+                  </Link>
                 )}
                 {user?.role === 'tasker' && (
                   <>

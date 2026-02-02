@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { adminAPI } from '../services/api';
 import useAuthStore from '../store/authStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -98,7 +99,7 @@ function AdminUsersPage() {
                     <th className="pb-2 pr-4">Phone / Email</th>
                     <th className="pb-2 pr-4">Name</th>
                     <th className="pb-2 pr-4">Created</th>
-                    {isPlatformAdmin && <th className="pb-2">Actions</th>}
+                    <th className="pb-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -112,29 +113,38 @@ function AdminUsersPage() {
                       <td className="py-2 pr-4">{u.phone || u.email || '—'}</td>
                       <td className="py-2 pr-4">{u.full_name || '—'}</td>
                       <td className="py-2 pr-4">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
-                      {isPlatformAdmin && (
-                        <td className="py-2">
-                          <div className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-destructive border-destructive/50 hover:bg-destructive/10"
-                              onClick={() => handleSuspend(u.id)}
-                              disabled={actionLoading === u.id || u.id === currentUser?.id}
-                            >
-                              {actionLoading === u.id ? '…' : 'Suspend'}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUnsuspend(u.id)}
-                              disabled={actionLoading === u.id || u.id === currentUser?.id}
-                            >
-                              {actionLoading === u.id ? '…' : 'Unsuspend'}
-                            </Button>
-                          </div>
-                        </td>
-                      )}
+                      <td className="py-2">
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                          >
+                            <Link to={`/admin/users/${u.id}`}>View</Link>
+                          </Button>
+                          {isPlatformAdmin && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                                onClick={() => handleSuspend(u.id)}
+                                disabled={actionLoading === u.id || u.id === currentUser?.id}
+                              >
+                                {actionLoading === u.id ? '…' : 'Suspend'}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUnsuspend(u.id)}
+                                disabled={actionLoading === u.id || u.id === currentUser?.id}
+                              >
+                                {actionLoading === u.id ? '…' : 'Unsuspend'}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

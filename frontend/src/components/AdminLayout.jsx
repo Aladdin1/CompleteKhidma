@@ -3,17 +3,16 @@ import { LayoutDashboard, ListTodo, Users, AlertCircle, ArrowLeft, FileText, Use
 import Navbar from './Navbar';
 
 const adminNav = [
-  { path: '/admin', labelEn: 'Dashboard', labelAr: 'لوحة التحكم', icon: LayoutDashboard },
-  { path: '/admin/tasks', labelEn: 'Tasks', labelAr: 'المهام', icon: ListTodo },
-  { path: '/admin/users', labelEn: 'Users', labelAr: 'المستخدمين', icon: Users },
-  { path: '/admin/taskers/pending', labelEn: 'Pending taskers', labelAr: 'المهمات قيد المراجعة', icon: UserCheck },
-  { path: '/admin/disputes', labelEn: 'Disputes', labelAr: 'النزاعات', icon: AlertCircle },
-  { path: '/admin/audit-log', labelEn: 'Audit log', labelAr: 'سجل التدقيق', icon: FileText },
+  { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/admin/tasks', label: 'Tasks', icon: ListTodo },
+  { path: '/admin/users', label: 'Users', icon: Users },
+  { path: '/admin/taskers/pending', label: 'Pending taskers', icon: UserCheck },
+  { path: '/admin/disputes', label: 'Disputes', icon: AlertCircle },
+  { path: '/admin/audit-log', label: 'Audit log', icon: FileText },
 ];
 
 function AdminLayout() {
   const location = useLocation();
-  const isAr = document.documentElement.lang === 'ar' || document.documentElement.dir === 'rtl';
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -25,10 +24,10 @@ function AdminLayout() {
             className="flex items-center gap-2 text-slate-600 hover:text-teal-600 text-sm font-medium mb-4 px-3 py-2 rounded-md hover:bg-slate-100"
           >
             <ArrowLeft className="h-4 w-4" />
-            {isAr ? 'العودة للموقع' : 'Back to site'}
+            Back to site
           </Link>
           <nav className="space-y-1">
-            {adminNav.map(({ path, labelEn, labelAr, icon: Icon }) => {
+            {adminNav.map(({ path, label, icon: Icon }) => {
               const active = path === '/admin' ? location.pathname === path : location.pathname.startsWith(path);
               return (
                 <Link
@@ -41,7 +40,7 @@ function AdminLayout() {
                   }`}
                 >
                   <Icon className="h-4 w-4" />
-                  {isAr ? labelAr : labelEn}
+                  {label}
                 </Link>
               );
             })}

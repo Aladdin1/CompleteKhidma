@@ -50,6 +50,7 @@ function AdminDashboardPage() {
   const bookingCount = (metrics?.bookings || []).reduce((sum, r) => sum + Number(r.count || 0), 0);
   const revenue = metrics?.revenue?.total ?? 0;
   const fillRate = metrics?.fill_rate != null ? `${(metrics.fill_rate * 100).toFixed(1)}%` : null;
+  const timeToAccept = metrics?.time_to_accept;
 
   const cards = [
     { title: 'Tasks', value: taskCount, desc: 'Total tasks', icon: ListTodo, link: '/admin/tasks' },
@@ -59,6 +60,32 @@ function AdminDashboardPage() {
   ];
   if (fillRate) {
     cards.push({ title: 'Fill rate', value: fillRate, desc: 'Tasks completed / total', icon: AlertCircle });
+  }
+  if (timeToAccept?.avg_minutes != null) {
+    cards.push({ 
+      title: 'Avg time to accept', 
+      value: `${timeToAccept.avg_minutes} min`, 
+      desc: `Median: ${timeToAccept.median_minutes} min (${timeToAccept.sample_count} samples)`, 
+      icon: AlertCircle 
+    });
+  }
+
+  const retention = metrics?.retention_30d;
+  if (retention?.client?.retention_rate != null) {
+    cards.push({ 
+      title: 'Client retention (30d)', 
+      value: `${retention.client.retention_rate}%`, 
+      desc: `${retention.client.retained_count}/${retention.client.prior_count} returned`, 
+      icon: AlertCircle 
+    });
+  }
+  if (retention?.tasker?.retention_rate != null) {
+    cards.push({ 
+      title: 'Tasker retention (30d)', 
+      value: `${retention.tasker.retention_rate}%`, 
+      desc: `${retention.tasker.retained_count}/${retention.tasker.prior_count} returned`, 
+      icon: AlertCircle 
+    });
   }
 
   return (

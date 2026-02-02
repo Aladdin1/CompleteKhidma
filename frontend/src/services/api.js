@@ -613,6 +613,11 @@ export const adminAPI = {
     return response.data;
   },
 
+  getDisputeDetail: async (disputeId) => {
+    const response = await api.get(`admin/disputes/${disputeId}`);
+    return response.data;
+  },
+
   assignTask: async (taskId, taskerId, reason) => {
     const response = await api.post(`admin/tasks/${taskId}/assign`, {
       tasker_id: taskerId,
@@ -651,6 +656,11 @@ export const adminAPI = {
 
   getAuditLog: async (params = {}) => {
     const response = await api.get('admin/audit-log', { params });
+    return response.data;
+  },
+
+  getUserDetail: async (userId) => {
+    const response = await api.get(`admin/users/${userId}`);
     return response.data;
   },
 };
