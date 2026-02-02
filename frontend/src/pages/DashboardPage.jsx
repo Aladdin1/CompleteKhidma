@@ -7,9 +7,6 @@ import {
   Copy,
   MapPin,
   Calendar,
-  CreditCard,
-  FileText,
-  BarChart3,
   ArrowRight,
   CheckCircle,
 } from 'lucide-react';
@@ -207,87 +204,20 @@ function DashboardPage() {
         </div>
       </section>
 
-      {/* Quick Access */}
-      <section className="py-12 bg-gray-50 rounded-2xl">
-        <div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link to="/dashboard/profile/payments">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <CreditCard className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{t('payment.paymentMethods')}</CardTitle>
-                      <CardDescription>{t('payment.manageMethods')}</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            </Link>
-            <Link to="/dashboard/payments/history">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <FileText className="h-6 w-6 text-green-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{t('payment.paymentHistory')}</CardTitle>
-                      <CardDescription>{t('payment.viewAllPayments')}</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            </Link>
-            <Link to="/dashboard/payments/analytics">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <BarChart3 className="h-6 w-6 text-purple-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{t('payment.spendingAnalytics')}</CardTitle>
-                      <CardDescription>{t('payment.viewSpendingInsights')}</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Your tasks - added to home (same as before creating tasks + tasks only) */}
-      <section className="py-16">
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">{t('task.myTasks')}</h2>
-            <Link to="/dashboard/my-tasks">
-              <Button variant="outline" size="lg">
-                {i18n.language === 'ar' ? 'عرض الكل' : 'View all'}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600" />
-            </div>
-          ) : tasks.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <p className="text-gray-500 mb-4">{t('task.noTasks')}</p>
-                <Button onClick={() => navigate('/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t('task.create')}
+      {/* Your tasks - only show when user has at least one task */}
+      {!loading && tasks.length > 0 && (
+        <section className="py-16">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+              <h2 className="text-3xl font-bold text-gray-900">{t('task.myTasks')}</h2>
+              <Link to="/dashboard/my-tasks">
+                <Button variant="outline" size="lg">
+                  {i18n.language === 'ar' ? 'عرض الكل' : 'View all'}
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
-              </CardContent>
-            </Card>
-          ) : (
+              </Link>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayedTasks.map((task) => (
                 <Card key={task.id} className="hover:shadow-lg transition-shadow">
@@ -326,19 +256,19 @@ function DashboardPage() {
                 </Card>
               ))}
             </div>
-          )}
-          {tasks.length > 6 && (
-            <div className="text-center mt-8">
-              <Link to="/dashboard/my-tasks">
-                <Button variant="outline" size="lg">
-                  {i18n.language === 'ar' ? 'عرض كل المهام' : 'View all tasks'}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-            </div>
-          )}
-        </div>
-      </section>
+            {tasks.length > 6 && (
+              <div className="text-center mt-8">
+                <Link to="/dashboard/my-tasks">
+                  <Button variant="outline" size="lg">
+                    {i18n.language === 'ar' ? 'عرض كل المهام' : 'View all tasks'}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
       </div>
     </div>
   );

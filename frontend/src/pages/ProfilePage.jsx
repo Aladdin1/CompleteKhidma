@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { userAPI } from '../services/api';
 import useAuthStore from '../store/authStore';
 import MapPicker from '../components/MapPicker';
@@ -319,6 +319,12 @@ function ProfilePage() {
           {t('profile.notifications')}
         </button>
         <button
+          className={activeTab === 'payments' ? 'active' : ''}
+          onClick={() => setActiveTab('payments')}
+        >
+          {t('payment.paymentMethods')}
+        </button>
+        <button
           className={activeTab === 'account' ? 'active' : ''}
           onClick={() => setActiveTab('account')}
         >
@@ -595,24 +601,25 @@ function ProfilePage() {
         </div>
       )}
 
-      {/* Payments Tab */}
+      {/* Payments Tab - Payment methods, Payment history, Spending analytics */}
       {activeTab === 'payments' && (
         <div className="profile-card">
           <div className="section-header">
-            <h2>{t('payment.paymentMethods')}</h2>
-            <a href="/profile/payments" className="primary-btn">
-              {t('payment.manageMethods')}
-            </a>
+            <h2>{i18nInstance.language === 'ar' ? 'المدفوعات' : 'Payments'}</h2>
           </div>
           <div className="quick-links">
-            <a href="/payments/history" className="link-card">
+            <Link to="/dashboard/profile/payments" className="link-card">
+              <h3>{t('payment.paymentMethods')}</h3>
+              <p>{t('payment.manageMethods')}</p>
+            </Link>
+            <Link to="/dashboard/payments/history" className="link-card">
               <h3>{t('payment.paymentHistory')}</h3>
               <p>{t('payment.viewAllPayments')}</p>
-            </a>
-            <a href="/payments/analytics" className="link-card">
+            </Link>
+            <Link to="/dashboard/payments/analytics" className="link-card">
               <h3>{t('payment.spendingAnalytics')}</h3>
               <p>{t('payment.viewSpendingInsights')}</p>
-            </a>
+            </Link>
           </div>
         </div>
       )}

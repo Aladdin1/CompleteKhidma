@@ -33,7 +33,7 @@ export const authenticate = async (req, res, next) => {
       }
 
       const user = result.rows[0];
-      // US-A-006: Block suspended or banned users from all API access (account_status may be absent pre-migration)
+      // US-A-006: Block suspended or banned users (account_status may be absent pre-migration)
       const status = user.account_status;
       if (status === 'suspended') {
         return res.status(403).json({
@@ -52,15 +52,30 @@ export const authenticate = async (req, res, next) => {
         });
       }
       req.user = user;
-      
-      // Log for debugging (can remove in production)
+
       if (process.env.NODE_ENV === 'development' && decoded.role !== req.user.role) {
         console.log(`⚠️  Role mismatch: Token has '${decoded.role}' but DB has '${req.user.role}' for user ${decoded.userId}`);
       }
-      
+
       return next();
     } catch (dbError) {
-      // Fallback: Check in-memory user store if database is not available
+      // Column account_status may not exist if migration 012 hasn't been run
+      const isUndefinedColumn = dbError.code === '42703' || (dbError.message && dbError.message.includes('account_status'));
+      if (isUndefinedColumn) {
+        try {
+          const fallback = await pool.query(
+            'SELECT id, role, phone, email, full_name, locale FROM users WHERE id = $1',
+            [decoded.userId]
+          );
+          if (fallback.rows.length > 0) {
+            req.user = { ...fallback.rows[0], account_status: 'active' };
+            return next();
+          }
+        } catch (fallbackErr) {
+          // fall through to "User not found"
+        }
+      }
+      // Fallback: in-memory user store when DB was unavailable
       if (global.userStore) {
         const user = Array.from(global.userStore.values()).find(u => u.id === decoded.userId);
         if (user) {
@@ -70,12 +85,13 @@ export const authenticate = async (req, res, next) => {
             phone: user.phone,
             email: user.email,
             full_name: user.full_name,
-            locale: user.locale
+            locale: user.locale,
+            account_status: user.account_status || 'active'
           };
           return next();
         }
       }
-      
+
       return res.status(401).json({
         error: {
           code: 'UNAUTHORIZED',
@@ -114,7 +130,6 @@ export const optionalAuth = async (req, res, next) => {
             'SELECT id, role, phone, email, full_name, locale, account_status FROM users WHERE id = $1',
             [decoded.userId]
           );
-
           if (result.rows.length > 0) {
             const u = result.rows[0];
             if (u.account_status !== 'suspended' && u.account_status !== 'banned') {
@@ -122,8 +137,21 @@ export const optionalAuth = async (req, res, next) => {
             }
           }
         } catch (dbError) {
-          // Fallback: Check in-memory user store
-          if (global.userStore) {
+          const isUndefinedColumn = dbError.code === '42703' || (dbError.message && dbError.message.includes('account_status'));
+          if (isUndefinedColumn) {
+            try {
+              const fallback = await pool.query(
+                'SELECT id, role, phone, email, full_name, locale FROM users WHERE id = $1',
+                [decoded.userId]
+              );
+              if (fallback.rows.length > 0) {
+                req.user = { ...fallback.rows[0], account_status: 'active' };
+              }
+            } catch (_) {
+              // ignore
+            }
+          }
+          if (!req.user && global.userStore) {
             const user = Array.from(global.userStore.values()).find(u => u.id === decoded.userId);
             if (user) {
               req.user = {
@@ -132,7 +160,8 @@ export const optionalAuth = async (req, res, next) => {
                 phone: user.phone,
                 email: user.email,
                 full_name: user.full_name,
-                locale: user.locale
+                locale: user.locale,
+                account_status: 'active'
               };
             }
           }
