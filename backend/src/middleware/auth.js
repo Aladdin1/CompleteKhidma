@@ -24,7 +24,7 @@ export const authenticate = async (req, res, next) => {
     // Fetch user from database (always get latest role from DB, not from token)
     try {
       const result = await pool.query(
-        'SELECT id, role, phone, email, full_name, locale FROM users WHERE id = $1',
+        'SELECT id, role, phone, email, full_name, locale, account_status FROM users WHERE id = $1',
         [decoded.userId]
       );
 
@@ -32,7 +32,26 @@ export const authenticate = async (req, res, next) => {
         throw new Error('User not found in database');
       }
 
-      req.user = result.rows[0];
+      const user = result.rows[0];
+      // US-A-006: Block suspended or banned users from all API access (account_status may be absent pre-migration)
+      const status = user.account_status;
+      if (status === 'suspended') {
+        return res.status(403).json({
+          error: {
+            code: 'ACCOUNT_SUSPENDED',
+            message: 'Your account has been suspended. Please contact support.'
+          }
+        });
+      }
+      if (status === 'banned') {
+        return res.status(403).json({
+          error: {
+            code: 'ACCOUNT_BANNED',
+            message: 'Your account has been banned.'
+          }
+        });
+      }
+      req.user = user;
       
       // Log for debugging (can remove in production)
       if (process.env.NODE_ENV === 'development' && decoded.role !== req.user.role) {
@@ -92,12 +111,15 @@ export const optionalAuth = async (req, res, next) => {
         
         try {
           const result = await pool.query(
-            'SELECT id, role, phone, email, full_name, locale FROM users WHERE id = $1',
+            'SELECT id, role, phone, email, full_name, locale, account_status FROM users WHERE id = $1',
             [decoded.userId]
           );
 
           if (result.rows.length > 0) {
-            req.user = result.rows[0];
+            const u = result.rows[0];
+            if (u.account_status !== 'suspended' && u.account_status !== 'banned') {
+              req.user = u;
+            }
           }
         } catch (dbError) {
           // Fallback: Check in-memory user store

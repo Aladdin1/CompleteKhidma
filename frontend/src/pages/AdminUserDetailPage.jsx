@@ -1,35 +1,42 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { adminAPI } from '../services/api';
+import useAuthStore from '../store/authStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, User, MapPin, ListTodo, BookOpen, Star, CreditCard, Clock } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, User, MapPin, ListTodo, BookOpen, Star, CreditCard, Clock, AlertTriangle, Flag, Headphones } from 'lucide-react';
 
 function AdminUserDetailPage() {
   const { userId } = useParams();
+  const { user: currentUser } = useAuthStore();
+  const isPlatformAdmin = currentUser?.role === 'admin';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+  const [fraudScoreInput, setFraudScoreInput] = useState('');
+
+  const loadUser = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await adminAPI.getUserDetail(userId);
+      setData(res);
+      setFraudScoreInput(res?.user?.fraud_risk_score != null ? String(res.user.fraud_risk_score) : '');
+    } catch (err) {
+      const status = err.response?.status;
+      const msg = err.response?.data?.error?.message || err.message || 'Failed to load user';
+      setError(status === 404 ? 'User not found. This user ID may not exist in the database.' : msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setLoading(true);
-        setError('');
-        const res = await adminAPI.getUserDetail(userId);
-        if (!cancelled) setData(res);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.response?.data?.error?.message || err.message || 'Failed to load user');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [userId]);
+    loadUser();
+  }, [loadUser]);
 
   if (loading) {
     return (
@@ -52,26 +59,151 @@ function AdminUserDetailPage() {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="space-y-4">
+        <Link to="/admin/users" className="inline-flex items-center gap-2 text-teal-600 hover:text-teal-700">
+          <ArrowLeft className="h-4 w-4" /> Back to Users
+        </Link>
+        <p className="text-slate-600">No data received. The user may not exist or the server returned an empty response.</p>
+      </div>
+    );
+  }
 
-  const { user, addresses, task_counts, booking_counts, reviews, payment_summary, tasker_profile, recent_activity } = data;
+  const { user, addresses, task_counts, booking_counts, reviews, payment_summary, tasker_profile, recent_activity, report_count, recent_reports } = data;
+  if (!user) {
+    return (
+      <div className="space-y-4">
+        <Link to="/admin/users" className="inline-flex items-center gap-2 text-teal-600 hover:text-teal-700">
+          <ArrowLeft className="h-4 w-4" /> Back to Users
+        </Link>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+          User not found or invalid response from server. The user ID may not exist.
+        </div>
+      </div>
+    );
+  }
+
+  const accountStatus = user.account_status || 'active';
+  const canManage = isPlatformAdmin && user.role !== 'admin' && user.role !== 'ops' && user.id !== currentUser?.id;
+
+  const handleSuspend = async () => {
+    try {
+      setActionLoading(true);
+      await adminAPI.suspendUser(userId);
+      await loadUser();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Failed to suspend');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleUnsuspend = async () => {
+    try {
+      setActionLoading(true);
+      await adminAPI.unsuspendUser(userId);
+      await loadUser();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Failed to unsuspend');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleBan = async () => {
+    const reason = window.prompt('Ban reason (optional):');
+    if (reason === null) return;
+    try {
+      setActionLoading(true);
+      await adminAPI.banUser(userId, reason);
+      await loadUser();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Failed to ban');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleSetFraudScore = async (e) => {
+    e.preventDefault();
+    const v = fraudScoreInput.trim();
+    const num = v === '' ? null : parseInt(v, 10);
+    if (num !== null && (num < 0 || num > 100)) {
+      setError('Fraud score must be 0–100 or empty');
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setError('');
+      await adminAPI.setUserFraudScore(userId, num);
+      await loadUser();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Failed to set fraud score');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCreateSupportTicket = async (e) => {
+    e.preventDefault();
+    const subject = window.prompt('Support ticket subject:');
+    if (!subject?.trim()) return;
+    try {
+      setActionLoading(true);
+      setError('');
+      const created = await adminAPI.createSupportTicket(userId, subject.trim(), 'medium');
+      if (created?.id) {
+        window.location.href = `/admin/support-tickets/${created.id}`;
+      } else {
+        await loadUser();
+      }
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Failed to create ticket');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <Link to="/admin/users" className="inline-flex items-center gap-2 text-teal-600 hover:text-teal-700">
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-slate-900">
             {user.full_name || user.phone || 'User Details'}
           </h1>
-          <p className="text-slate-600 mt-1">
-            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 mr-2">
+          <p className="text-slate-600 mt-1 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
               {user.role}
             </span>
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
+              accountStatus === 'banned' ? 'bg-red-100 text-red-800' :
+              accountStatus === 'suspended' ? 'bg-amber-100 text-amber-800' :
+              'bg-emerald-100 text-emerald-800'
+            }`}>
+              {accountStatus}
+            </span>
             Member since {user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
+            {canManage && (
+              <span className="flex gap-1 ml-2">
+                {accountStatus !== 'suspended' && accountStatus !== 'banned' && (
+                  <Button variant="outline" size="sm" className="text-destructive border-destructive/50" onClick={handleSuspend} disabled={actionLoading}>
+                    Suspend
+                  </Button>
+                )}
+                {accountStatus === 'suspended' && (
+                  <Button variant="outline" size="sm" onClick={handleUnsuspend} disabled={actionLoading}>
+                    Unsuspend
+                  </Button>
+                )}
+                {accountStatus !== 'banned' && (
+                  <Button variant="outline" size="sm" className="text-red-700 border-red-300" onClick={handleBan} disabled={actionLoading}>
+                    Ban
+                  </Button>
+                )}
+              </span>
+            )}
           </p>
         </div>
       </div>
@@ -133,6 +265,53 @@ function AdminUserDetailPage() {
         </Card>
       </div>
 
+      {/* US-A-007: Behavior flags */}
+      <Card className="border-slate-200 border-l-4 border-l-amber-400">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-slate-800">
+            <Flag className="h-5 w-5" /> Behavior flags
+          </CardTitle>
+          <CardDescription>Report count and fraud risk score for moderation</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-slate-500">Reports against this user</p>
+              <p className="text-2xl font-bold text-slate-900">{report_count ?? 0}</p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">Fraud risk score (0–100)</p>
+              <p className="text-2xl font-bold text-slate-900">{user.fraud_risk_score != null ? user.fraud_risk_score : '—'}</p>
+            </div>
+          </div>
+          {isPlatformAdmin && (
+            <form onSubmit={handleSetFraudScore} className="flex flex-wrap items-end gap-2">
+              <div>
+                <Label htmlFor="fraud-score" className="text-xs">Set fraud score (0–100 or clear)</Label>
+                <Input
+                  id="fraud-score"
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="—"
+                  value={fraudScoreInput}
+                  onChange={(e) => setFraudScoreInput(e.target.value)}
+                  className="w-24 mt-1"
+                />
+              </div>
+              <Button type="submit" size="sm" disabled={actionLoading}>
+                {actionLoading ? '…' : 'Update'}
+              </Button>
+            </form>
+          )}
+          <div className="pt-2 border-t border-slate-100">
+            <Button variant="outline" size="sm" className="gap-1" onClick={handleCreateSupportTicket} disabled={actionLoading}>
+              <Headphones className="h-4 w-4" /> Create support ticket for this user
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Profile Info */}
@@ -168,9 +347,40 @@ function AdminUserDetailPage() {
                 <dt className="text-slate-500">User ID</dt>
                 <dd className="font-mono text-xs text-slate-600">{user.id}</dd>
               </div>
+              {user.account_status_reason && (
+                <div className="col-span-2">
+                  <dt className="text-slate-500">Account status reason</dt>
+                  <dd className="text-slate-900">{user.account_status_reason}</dd>
+                </div>
+              )}
             </dl>
           </CardContent>
         </Card>
+
+        {/* Recent reports (US-A-007) */}
+        {(recent_reports?.length > 0) && (
+          <Card className="border-slate-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600" /> Recent reports
+              </CardTitle>
+              <CardDescription>{report_count ?? 0} total reports against this user</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 text-sm">
+                {recent_reports.map((r) => (
+                  <li key={r.id} className="border-b border-slate-100 pb-2 last:border-0">
+                    <span className="font-medium text-slate-700">{r.kind}</span>
+                    <span className="text-slate-500 ml-2">— {r.status}</span>
+                    <span className="text-slate-400 ml-2">{r.created_at ? new Date(r.created_at).toLocaleString() : ''}</span>
+                    <p className="text-slate-600 mt-1">{r.description || '—'}</p>
+                    <p className="text-xs text-slate-400">By: {r.reporter_name || r.reporter_phone || 'Unknown'}</p>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Tasker Profile (if applicable) */}
         {tasker_profile && (
@@ -242,9 +452,9 @@ function AdminUserDetailPage() {
             <CardDescription>{addresses?.length || 0} saved addresses</CardDescription>
           </CardHeader>
           <CardContent>
-            {addresses?.length > 0 ? (
+            {(addresses && addresses.length > 0) ? (
               <ul className="space-y-3">
-                {addresses.map((addr) => (
+                {(addresses || []).map((addr) => (
                   <li key={addr.id} className="text-sm border-b border-slate-100 pb-2 last:border-0 last:pb-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-slate-900">{addr.label || 'Address'}</span>
@@ -329,7 +539,7 @@ function AdminUserDetailPage() {
             </CardHeader>
             <CardContent>
               <ul className="space-y-3">
-                {reviews.recent.map((review) => (
+                {(reviews?.recent || []).map((review) => (
                   <li key={review.id} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -367,7 +577,7 @@ function AdminUserDetailPage() {
         )}
 
         {/* Recent Activity */}
-        {recent_activity?.length > 0 && (
+        {Array.isArray(recent_activity) && recent_activity.length > 0 && (
           <Card className="border-slate-200 lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

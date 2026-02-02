@@ -636,6 +636,50 @@ export const adminAPI = {
     return response.data;
   },
 
+  banUser: async (userId, reason) => {
+    const response = await api.post(`admin/users/${userId}/ban`, { reason });
+    return response.data;
+  },
+
+  setUserFraudScore: async (userId, fraudRiskScore) => {
+    const response = await api.patch(`admin/users/${userId}/fraud-score`, {
+      fraud_risk_score: fraudRiskScore,
+    });
+    return response.data;
+  },
+
+  getSupportTickets: async (params = {}) => {
+    const response = await api.get('admin/support-tickets', { params });
+    return response.data;
+  },
+
+  getSupportTicketDetail: async (ticketId) => {
+    const response = await api.get(`admin/support-tickets/${ticketId}`);
+    return response.data;
+  },
+
+  createSupportTicket: async (userId, subject, priority = 'medium') => {
+    const response = await api.post('admin/support-tickets', {
+      user_id: userId,
+      subject,
+      priority,
+    });
+    return response.data;
+  },
+
+  updateSupportTicket: async (ticketId, { status, assigned_to }) => {
+    const response = await api.patch(`admin/support-tickets/${ticketId}`, {
+      status,
+      assigned_to,
+    });
+    return response.data;
+  },
+
+  addSupportTicketNote: async (ticketId, body) => {
+    const response = await api.post(`admin/support-tickets/${ticketId}/notes`, { body });
+    return response.data;
+  },
+
   resolveDispute: async (disputeId, resolution, refundAmount) => {
     const response = await api.post(`admin/disputes/${disputeId}/resolve`, {
       resolution,

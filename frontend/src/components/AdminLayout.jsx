@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, Users, AlertCircle, ArrowLeft, FileText, UserCheck } from 'lucide-react';
+import { LayoutDashboard, ListTodo, Users, AlertCircle, ArrowLeft, FileText, UserCheck, Headphones } from 'lucide-react';
 import Navbar from './Navbar';
 
 const adminNav = [
@@ -7,6 +7,7 @@ const adminNav = [
   { path: '/admin/tasks', label: 'Tasks', icon: ListTodo },
   { path: '/admin/users', label: 'Users', icon: Users },
   { path: '/admin/taskers/pending', label: 'Pending taskers', icon: UserCheck },
+  { path: '/admin/support-tickets', label: 'Support tickets', icon: Headphones },
   { path: '/admin/disputes', label: 'Disputes', icon: AlertCircle },
   { path: '/admin/audit-log', label: 'Audit log', icon: FileText },
 ];

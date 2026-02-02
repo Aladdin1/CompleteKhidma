@@ -320,28 +320,44 @@ router.get('/bookings', pagination, async (req, res, next) => {
 
 /**
  * GET /api/v1/admin/users
- * List all users
+ * List all users. US-A-007: includes account_status, report_count, fraud_risk_score (behavior flags).
  */
 router.get('/users', pagination, async (req, res, next) => {
   try {
     const { limit, cursor } = req.pagination;
-    const { role } = req.query;
+    const { role, account_status: statusFilter } = req.query;
 
-    let query = 'SELECT id, role, phone, email, full_name, locale, created_at FROM users WHERE 1=1';
+    let query = `
+      SELECT u.id, u.role, u.phone, u.email, u.full_name, u.locale, u.created_at,
+             u.account_status, u.account_status_reason, u.account_status_updated_at,
+             u.fraud_risk_score, u.fraud_risk_updated_at,
+             COALESCE(r.report_count, 0)::int AS report_count
+      FROM users u
+      LEFT JOIN (
+        SELECT reported_user_id, COUNT(*)::int AS report_count
+        FROM reports
+        WHERE reported_user_id IS NOT NULL
+        GROUP BY reported_user_id
+      ) r ON r.reported_user_id = u.id
+      WHERE 1=1
+    `;
     const params = [];
     let paramIndex = 1;
 
     if (role) {
-      query += ` AND role = $${paramIndex++}`;
+      query += ` AND u.role = $${paramIndex++}`;
       params.push(role);
     }
-
+    if (statusFilter) {
+      query += ` AND u.account_status = $${paramIndex++}`;
+      params.push(statusFilter);
+    }
     if (cursor) {
-      query += ` AND created_at < (SELECT created_at FROM users WHERE id = $${paramIndex++})`;
+      query += ` AND u.created_at < (SELECT created_at FROM users WHERE id = $${paramIndex++})`;
       params.push(cursor);
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${paramIndex++}`;
+    query += ` ORDER BY u.created_at DESC LIMIT $${paramIndex++}`;
     params.push(limit + 1);
 
     const result = await pool.query(query, params);
@@ -356,15 +372,17 @@ router.get('/users', pagination, async (req, res, next) => {
 
 /**
  * GET /api/v1/admin/users/:user_id
- * US-A-009: View full user profile and history (tasks, bookings, reviews, payments)
+ * US-A-009: View full user profile and history. US-A-007: account_status, report_count, fraud_risk_score, recent reports.
  */
 router.get('/users/:user_id', async (req, res, next) => {
   try {
     const { user_id } = req.params;
 
-    // Get user basic info
+    // Get user basic info including account_status and fraud_risk_score
     const userResult = await pool.query(
-      `SELECT id, role, phone, email, full_name, locale, created_at, updated_at
+      `SELECT id, role, phone, email, full_name, locale, created_at, updated_at,
+              account_status, account_status_reason, account_status_updated_at, account_status_actor_id,
+              fraud_risk_score, fraud_risk_updated_at
        FROM users WHERE id = $1`,
       [user_id]
     );
@@ -517,6 +535,23 @@ router.get('/users/:user_id', async (req, res, next) => {
       [user_id]
     );
 
+    // US-A-007: Report count and recent reports (behavior flags)
+    const reportCountResult = await pool.query(
+      'SELECT COUNT(*)::int AS report_count FROM reports WHERE reported_user_id = $1',
+      [user_id]
+    );
+    const reportCount = reportCountResult.rows[0]?.report_count || 0;
+    const recentReportsResult = await pool.query(
+      `SELECT r.id, r.kind, r.status, r.description, r.created_at,
+              u.full_name AS reporter_name, u.phone AS reporter_phone
+       FROM reports r
+       LEFT JOIN users u ON u.id = r.reporter_id
+       WHERE r.reported_user_id = $1
+       ORDER BY r.created_at DESC
+       LIMIT 10`,
+      [user_id]
+    );
+
     res.json({
       user: {
         id: user.id,
@@ -526,8 +561,16 @@ router.get('/users/:user_id', async (req, res, next) => {
         full_name: user.full_name,
         locale: user.locale,
         created_at: user.created_at,
-        updated_at: user.updated_at
+        updated_at: user.updated_at,
+        account_status: user.account_status || 'active',
+        account_status_reason: user.account_status_reason,
+        account_status_updated_at: user.account_status_updated_at,
+        account_status_actor_id: user.account_status_actor_id,
+        fraud_risk_score: user.fraud_risk_score != null ? parseInt(user.fraud_risk_score, 10) : null,
+        fraud_risk_updated_at: user.fraud_risk_updated_at
       },
+      report_count: reportCount,
+      recent_reports: recentReportsResult.rows,
       addresses: addressesResult.rows,
       task_counts: taskCounts,
       booking_counts: bookingCounts,
@@ -556,32 +599,41 @@ router.get('/users/:user_id', async (req, res, next) => {
 
 /**
  * POST /api/v1/admin/users/:user_id/suspend
- * Suspend user (admin only; ops cannot perform user-management actions)
+ * US-A-006: Suspend user (any role). Admin only. Updates users.account_status and tasker_profiles when tasker.
  */
 router.post('/users/:user_id/suspend', requireAdminOnly, async (req, res, next) => {
   try {
     const { user_id } = req.params;
-    const { reason } = req.body;
+    const { reason } = req.body || {};
 
-    // Update user role or add suspension flag
-    // For now, update tasker status if they are a tasker
+    const userResult = await pool.query('SELECT id, role FROM users WHERE id = $1', [user_id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    }
+    if (userResult.rows[0].role === 'admin' || userResult.rows[0].role === 'ops') {
+      return res.status(400).json({
+        error: { code: 'INVALID_REQUEST', message: 'Cannot suspend admin or ops accounts' }
+      });
+    }
+
     await pool.query(
-      `UPDATE tasker_profiles 
-       SET status = 'suspended', updated_at = now()
-       WHERE user_id = $1`,
+      `UPDATE users SET account_status = 'suspended', account_status_reason = $1,
+        account_status_updated_at = now(), account_status_actor_id = $2, updated_at = now()
+       WHERE id = $3`,
+      [reason || null, req.user.id, user_id]
+    );
+    await pool.query(
+      `UPDATE tasker_profiles SET status = 'suspended', updated_at = now() WHERE user_id = $1`,
       [user_id]
     );
 
-    // Log audit
     await pool.query(
       `INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, meta)
        VALUES (uuid_generate_v4(), $1, 'suspend_user', 'user', $2, $3)`,
       [req.user.id, user_id, JSON.stringify({ reason: reason || null })]
     );
 
-    res.json({
-      message: 'User suspended successfully'
-    });
+    res.json({ message: 'User suspended successfully' });
   } catch (error) {
     next(error);
   }
@@ -589,16 +641,25 @@ router.post('/users/:user_id/suspend', requireAdminOnly, async (req, res, next) 
 
 /**
  * POST /api/v1/admin/users/:user_id/unsuspend
- * Unsuspend user (admin only; ops cannot perform user-management actions)
+ * US-A-006: Unsuspend user (any role). Admin only.
  */
 router.post('/users/:user_id/unsuspend', requireAdminOnly, async (req, res, next) => {
   try {
     const { user_id } = req.params;
 
+    const userResult = await pool.query('SELECT id, role FROM users WHERE id = $1', [user_id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    }
+
     await pool.query(
-      `UPDATE tasker_profiles 
-       SET status = 'active', updated_at = now()
-       WHERE user_id = $1`,
+      `UPDATE users SET account_status = 'active', account_status_reason = NULL,
+        account_status_updated_at = now(), account_status_actor_id = NULL, updated_at = now()
+       WHERE id = $1`,
+      [user_id]
+    );
+    await pool.query(
+      `UPDATE tasker_profiles SET status = 'active', updated_at = now() WHERE user_id = $1`,
       [user_id]
     );
 
@@ -608,9 +669,80 @@ router.post('/users/:user_id/unsuspend', requireAdminOnly, async (req, res, next
       [req.user.id, user_id]
     );
 
-    res.json({
-      message: 'User unsuspended successfully'
-    });
+    res.json({ message: 'User unsuspended successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/users/:user_id/ban
+ * US-A-006: Ban user (permanent). Admin only. Cannot ban admin/ops.
+ */
+router.post('/users/:user_id/ban', requireAdminOnly, async (req, res, next) => {
+  try {
+    const { user_id } = req.params;
+    const { reason } = req.body || {};
+
+    const userResult = await pool.query('SELECT id, role FROM users WHERE id = $1', [user_id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    }
+    if (userResult.rows[0].role === 'admin' || userResult.rows[0].role === 'ops') {
+      return res.status(400).json({
+        error: { code: 'INVALID_REQUEST', message: 'Cannot ban admin or ops accounts' }
+      });
+    }
+
+    await pool.query(
+      `UPDATE users SET account_status = 'banned', account_status_reason = $1,
+        account_status_updated_at = now(), account_status_actor_id = $2, updated_at = now()
+       WHERE id = $3`,
+      [reason || null, req.user.id, user_id]
+    );
+    await pool.query(
+      `UPDATE tasker_profiles SET status = 'offboarded', updated_at = now() WHERE user_id = $1`,
+      [user_id]
+    );
+
+    await pool.query(
+      `INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, meta)
+       VALUES (uuid_generate_v4(), $1, 'ban_user', 'user', $2, $3)`,
+      [req.user.id, user_id, JSON.stringify({ reason: reason || null })]
+    );
+
+    res.json({ message: 'User banned successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PATCH /api/v1/admin/users/:user_id/fraud-score
+ * US-A-007: Set fraud risk score (0-100). Admin only.
+ */
+router.patch('/users/:user_id/fraud-score', requireAdminOnly, async (req, res, next) => {
+  try {
+    const { user_id } = req.params;
+    const body = z.object({ fraud_risk_score: z.number().int().min(0).max(100).nullable() }).safeParse(req.body);
+    const score = body.success ? body.data.fraud_risk_score : undefined;
+    if (score === undefined) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'fraud_risk_score must be 0-100 or null' }
+      });
+    }
+
+    await pool.query(
+      `UPDATE users SET fraud_risk_score = $1, fraud_risk_updated_at = now(), updated_at = now() WHERE id = $2`,
+      [score, user_id]
+    );
+    await pool.query(
+      `INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, meta)
+       VALUES (uuid_generate_v4(), $1, 'set_fraud_score', 'user', $2, $3)`,
+      [req.user.id, user_id, JSON.stringify({ fraud_risk_score: score })]
+    );
+
+    res.json({ message: 'Fraud risk score updated', fraud_risk_score: score });
   } catch (error) {
     next(error);
   }
@@ -1315,6 +1447,248 @@ router.get('/audit-log', pagination, async (req, res, next) => {
     const items = result.rows.slice(0, limit);
     const nextCursor = result.rows.length > limit ? items[items.length - 1].id : null;
     res.json(formatPaginatedResponse(items, nextCursor));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============== Support Tickets (US-A-026, US-A-028) ==============
+
+/**
+ * GET /api/v1/admin/support-tickets
+ * List support tickets with filters (status, user_id, assigned_to).
+ */
+router.get('/support-tickets', pagination, async (req, res, next) => {
+  try {
+    const { limit, cursor } = req.pagination;
+    const { status, user_id, assigned_to } = req.query;
+    let query = `
+      SELECT st.id, st.user_id, st.subject, st.status, st.priority, st.assigned_to,
+             st.created_at, st.updated_at, st.closed_at,
+             u.full_name AS user_name, u.phone AS user_phone, u.role AS user_role
+      FROM support_tickets st
+      JOIN users u ON u.id = st.user_id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+    if (status) {
+      query += ` AND st.status = $${paramIndex++}`;
+      params.push(status);
+    }
+    if (user_id) {
+      query += ` AND st.user_id = $${paramIndex++}`;
+      params.push(user_id);
+    }
+    if (assigned_to) {
+      query += ` AND st.assigned_to = $${paramIndex++}`;
+      params.push(assigned_to);
+    }
+    if (cursor) {
+      query += ` AND st.created_at < (SELECT created_at FROM support_tickets WHERE id = $${paramIndex++})`;
+      params.push(cursor);
+    }
+    query += ` ORDER BY st.created_at DESC LIMIT $${paramIndex++}`;
+    params.push(limit + 1);
+    const result = await pool.query(query, params);
+    const items = result.rows.slice(0, limit);
+    const nextCursor = result.rows.length > limit ? items[items.length - 1].id : null;
+    res.json(formatPaginatedResponse(items, nextCursor));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/admin/support-tickets/:ticket_id
+ * US-A-028: Ticket detail with user context (summary + link to full user detail).
+ */
+router.get('/support-tickets/:ticket_id', async (req, res, next) => {
+  try {
+    const { ticket_id } = req.params;
+    const ticketResult = await pool.query(
+      `SELECT st.*, u.full_name AS user_name, u.phone AS user_phone, u.role AS user_role, u.email AS user_email
+       FROM support_tickets st
+       JOIN users u ON u.id = st.user_id
+       WHERE st.id = $1`,
+      [ticket_id]
+    );
+    if (ticketResult.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Support ticket not found' } });
+    }
+    const ticket = ticketResult.rows[0];
+
+    const notesResult = await pool.query(
+      `SELECT n.id, n.body, n.created_at, u.full_name AS author_name, u.phone AS author_phone
+       FROM support_ticket_notes n
+       JOIN users u ON u.id = n.author_id
+       WHERE n.ticket_id = $1 ORDER BY n.created_at ASC`,
+      [ticket_id]
+    );
+
+    // User context for support: task/payment summary (US-A-028)
+    const userId = ticket.user_id;
+    const [taskCountResult, paymentResult] = await Promise.all([
+      pool.query(
+        'SELECT state, COUNT(*)::int AS count FROM tasks WHERE client_id = $1 GROUP BY state',
+        [userId]
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(CASE WHEN t.client_id = $1 THEN b.agreed_rate_amount ELSE 0 END), 0)::bigint AS spent,
+                COALESCE(SUM(CASE WHEN b.tasker_id = $1 THEN b.agreed_rate_amount ELSE 0 END), 0)::bigint AS earned
+         FROM bookings b JOIN tasks t ON t.id = b.task_id
+         WHERE (t.client_id = $1 OR b.tasker_id = $1) AND b.status = 'completed'`,
+        [userId]
+      )
+    ]);
+    const task_counts = taskCountResult.rows.reduce((acc, r) => { acc[r.state] = r.count; return acc; }, {});
+    const total_tasks = taskCountResult.rows.reduce((s, r) => s + r.count, 0);
+    const payment = paymentResult.rows[0];
+
+    res.json({
+      ticket: {
+        id: ticket.id,
+        user_id: ticket.user_id,
+        subject: ticket.subject,
+        status: ticket.status,
+        priority: ticket.priority,
+        assigned_to: ticket.assigned_to,
+        created_at: ticket.created_at,
+        updated_at: ticket.updated_at,
+        closed_at: ticket.closed_at,
+        user_name: ticket.user_name,
+        user_phone: ticket.user_phone,
+        user_role: ticket.user_role,
+        user_email: ticket.user_email
+      },
+      notes: notesResult.rows,
+      user_context: {
+        user_id: userId,
+        user_name: ticket.user_name,
+        user_phone: ticket.user_phone,
+        user_role: ticket.user_role,
+        task_count_total: total_tasks,
+        task_counts_by_state: task_counts,
+        total_spent_egp: parseInt(payment?.spent || 0, 10) / 100,
+        total_earned_egp: parseInt(payment?.earned || 0, 10) / 100,
+        link_to_user_detail: `/admin/users/${userId}`
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/support-tickets
+ * Create support ticket (e.g. when user contacts support).
+ */
+router.post('/support-tickets', async (req, res, next) => {
+  try {
+    const body = z.object({
+      user_id: z.string().uuid(),
+      subject: z.string().min(1),
+      priority: z.enum(['low', 'medium', 'high']).optional()
+    }).parse(req.body);
+
+    const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [body.user_id]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    }
+
+    const id = uuidv4();
+    await pool.query(
+      `INSERT INTO support_tickets (id, user_id, subject, status, priority)
+       VALUES ($1, $2, $3, 'open', $4)`,
+      [id, body.user_id, body.subject, body.priority || 'medium']
+    );
+    res.status(201).json({
+      id,
+      user_id: body.user_id,
+      subject: body.subject,
+      status: 'open',
+      priority: body.priority || 'medium',
+      message: 'Support ticket created'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PATCH /api/v1/admin/support-tickets/:ticket_id
+ * Update status, assigned_to.
+ */
+router.patch('/support-tickets/:ticket_id', async (req, res, next) => {
+  try {
+    const { ticket_id } = req.params;
+    const body = z.object({
+      status: z.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
+      assigned_to: z.string().uuid().nullable().optional()
+    }).safeParse(req.body);
+
+    if (!body.success) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid body' } });
+    }
+
+    const check = await pool.query('SELECT id FROM support_tickets WHERE id = $1', [ticket_id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Support ticket not found' } });
+    }
+
+    const updates = [];
+    const params = [];
+    let paramIndex = 1;
+    if (body.data.status !== undefined) {
+      updates.push(`status = $${paramIndex++}`);
+      params.push(body.data.status);
+      if (body.data.status === 'resolved' || body.data.status === 'closed') {
+        updates.push('closed_at = now()');
+      }
+    }
+    if (body.data.assigned_to !== undefined) {
+      updates.push(`assigned_to = $${paramIndex++}`);
+      params.push(body.data.assigned_to);
+    }
+    if (updates.length === 0) {
+      return res.json({ message: 'No changes' });
+    }
+    updates.push('updated_at = now()');
+    params.push(ticket_id);
+    await pool.query(
+      `UPDATE support_tickets SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
+      params
+    );
+    res.json({ message: 'Support ticket updated' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/support-tickets/:ticket_id/notes
+ * Add note to ticket.
+ */
+router.post('/support-tickets/:ticket_id/notes', async (req, res, next) => {
+  try {
+    const { ticket_id } = req.params;
+    const body = z.object({ body: z.string().min(1) }).parse(req.body);
+
+    const check = await pool.query('SELECT id FROM support_tickets WHERE id = $1', [ticket_id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Support ticket not found' } });
+    }
+
+    const id = uuidv4();
+    await pool.query(
+      'INSERT INTO support_ticket_notes (id, ticket_id, author_id, body) VALUES ($1, $2, $3, $4)',
+      [id, ticket_id, req.user.id, body.body]
+    );
+    const noteResult = await pool.query(
+      'SELECT id, body, created_at FROM support_ticket_notes WHERE id = $1',
+      [id]
+    );
+    res.status(201).json(noteResult.rows[0]);
   } catch (error) {
     next(error);
   }

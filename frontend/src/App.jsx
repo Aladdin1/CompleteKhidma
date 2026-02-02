@@ -33,7 +33,10 @@ import AdminDisputesPage from './pages/AdminDisputesPage';
 import AdminDisputeDetailPage from './pages/AdminDisputeDetailPage';
 import AdminAuditLogPage from './pages/AdminAuditLogPage';
 import AdminPendingTaskersPage from './pages/AdminPendingTaskersPage';
+import AdminSupportTicketsPage from './pages/AdminSupportTicketsPage';
+import AdminSupportTicketDetailPage from './pages/AdminSupportTicketDetailPage';
 import AdminUserDetailPage from './pages/AdminUserDetailPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import TaskerApplicationStatusPage from './pages/TaskerApplicationStatusPage';
 import Layout from './components/Layout';
 import AdminLayout from './components/AdminLayout';
@@ -87,10 +90,12 @@ function App() {
           <Route index element={<AdminDashboardPage />} />
           <Route path="tasks" element={<AdminTasksPage />} />
           <Route path="users" element={<AdminUsersPage />} />
-          <Route path="users/:userId" element={<AdminUserDetailPage />} />
+          <Route path="users/:userId" element={<ErrorBoundary backTo="/admin/users" backLabel="Back to Users" message="User detail page failed to load. You may see this if the API response format changed or data is missing."><AdminUserDetailPage /></ErrorBoundary>} />
           <Route path="disputes" element={<AdminDisputesPage />} />
           <Route path="disputes/:disputeId" element={<AdminDisputeDetailPage />} />
           <Route path="taskers/pending" element={<AdminPendingTaskersPage />} />
+          <Route path="support-tickets" element={<AdminSupportTicketsPage />} />
+          <Route path="support-tickets/:ticketId" element={<AdminSupportTicketDetailPage />} />
           <Route path="audit-log" element={<AdminAuditLogPage />} />
         </Route>
 
