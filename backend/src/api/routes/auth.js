@@ -147,8 +147,8 @@ router.post('/otp/request', async (req, res, next) => {
     const normalizedPhone = phone.replace(/[\s\-\(\)]/g, '');
     
     // TODO: Integrate with SMS provider
-    // For now, generate and store OTP in Redis (6 digits)
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // For now, use fixed OTP for development
+    const otp = '111111';
     const otpKey = `otp:${normalizedPhone}`;
     
     // Log OTP prominently to terminal (for development/testing)

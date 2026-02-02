@@ -11,7 +11,7 @@ const BrowseServices = () => {
   const [searchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
 
   const filteredServices = services.filter(service =>
     service.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

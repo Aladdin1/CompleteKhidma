@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import useAuthStore from '@/store/authStore';
 
 const LandingPage = () => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,15 +24,15 @@ const LandingPage = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    navigate('/tasks/create');
+    navigate('/services');
   };
 
   const handleCategoryClick = (categoryId) => {
-    navigate(`/tasks/create?category=${categoryId}`);
+    navigate(`/services/${categoryId}`);
   };
 
   const handleCreateTask = () => {
-    navigate('/tasks/create');
+    navigate('/services');
   };
 
   const displayedServices = services.slice(0, 8);
@@ -102,9 +102,7 @@ const LandingPage = () => {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {displayedServices.map((service) => {
-              const IconComponent = () => <span className="text-4xl">{service.icon}</span>;
-              return (
+            {displayedServices.map((service) => (
                 <button
                   key={service.id}
                   onClick={() => handleCategoryClick(service.id)}
@@ -133,8 +131,7 @@ const LandingPage = () => {
                     </div>
                   </div>
                 </button>
-              );
-            })}
+            ))}
           </div>
 
           <div className="text-center mt-10">

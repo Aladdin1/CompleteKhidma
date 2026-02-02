@@ -9,6 +9,21 @@ import TaskService from '../../services/task/index.js';
 
 const router = express.Router();
 
+/** Ensure bid_mode column exists (migration 010). Run once so POST and GET don't fail. */
+let bidModeColumnChecked = false;
+async function ensureBidModeColumn() {
+  if (bidModeColumnChecked) return;
+  try {
+    await pool.query(`
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS bid_mode TEXT NOT NULL DEFAULT 'invite_only'
+        CHECK (bid_mode IN ('open_for_bids', 'invite_only'));
+    `);
+    bidModeColumnChecked = true;
+  } catch (err) {
+    console.warn('ensureBidModeColumn:', err.message);
+  }
+}
+
 /**
  * POST /api/v1/tasks
  * Create a task
@@ -143,6 +158,7 @@ router.post('/', authenticate, requireRole('client'), idempotency, async (req, r
  */
 router.get('/', authenticate, requireRole('client'), pagination, async (req, res, next) => {
   try {
+    await ensureBidModeColumn();
     const userId = req.user.id;
     const { limit, cursor } = req.pagination;
     const { state } = req.query;
@@ -187,6 +203,7 @@ router.get('/', authenticate, requireRole('client'), pagination, async (req, res
         flexibility_minutes: task.flexibility_minutes
       },
       state: task.state,
+      bid_mode: task.bid_mode || 'invite_only',
       created_at: task.created_at
     }));
 
@@ -583,6 +600,7 @@ router.patch('/:task_id', authenticate, requireRole('client'), async (req, res, 
  */
 router.post('/:task_id/post', authenticate, requireRole('client'), async (req, res, next) => {
   try {
+    await ensureBidModeColumn();
     const { task_id } = req.params;
     const userId = req.user.id;
     const body = z.object({
@@ -666,6 +684,7 @@ router.get('/:task_id/available-taskers', authenticate, requireRole('client'), a
     const { task_id } = req.params;
     const userId = req.user.id;
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+    const countOnly = req.query.count_only === 'true' || req.query.count_only === '1';
 
     const taskResult = await pool.query(
       'SELECT * FROM tasks WHERE id = $1 AND client_id = $2',
@@ -683,7 +702,19 @@ router.get('/:task_id/available-taskers', authenticate, requireRole('client'), a
 
     const slug = (task.category || '').trim().toLowerCase();
     if (!slug) {
-      return res.json({ items: [] });
+      return res.json(countOnly ? { count: 0 } : { items: [] });
+    }
+
+    if (countOnly) {
+      const countResult = await pool.query(
+        `SELECT COUNT(*)::int AS cnt
+         FROM users u
+         JOIN tasker_profiles tp ON tp.user_id = u.id
+         JOIN tasker_categories tc ON tc.tasker_id = u.id AND LOWER(TRIM(tc.category)) = $1
+         WHERE u.role = 'tasker' AND tp.status IN ('verified', 'active')`,
+        [slug]
+      );
+      return res.json({ count: countResult.rows[0]?.cnt ?? 0 });
     }
 
     const completedResult = await pool.query(

@@ -6,7 +6,7 @@ import useAuthStore from '../store/authStore';
 import '../styles/BecomeTaskerPage.css';
 
 function BecomeTaskerPage() {
-  const { t } = useTranslation();
+  useTranslation(); // i18n available when needed
   const navigate = useNavigate();
   const { user, setAuth, updateUser } = useAuthStore();
   const [loading, setLoading] = useState(false);

@@ -1,45 +1,39 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Search, Filter, X, Plus, Copy, MapPin, Calendar, CreditCard, FileText, BarChart3 } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  Copy,
+  MapPin,
+  Calendar,
+  CreditCard,
+  FileText,
+  BarChart3,
+  ArrowRight,
+  CheckCircle,
+} from 'lucide-react';
 import { taskAPI } from '../services/api';
+import { services as servicesList } from '../data/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-const CATEGORIES = [
-  'cleaning',
-  'mounting',
-  'moving',
-  'assembly',
-  'delivery',
-  'handyman',
-  'painting',
-  'plumbing',
-  'electrical',
-];
-
 function DashboardPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [tasks, setTasks] = useState([]);
-  const [filteredTasks, setFilteredTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
-  const [showFilters, setShowFilters] = useState(false);
+  const [heroSearchQuery, setHeroSearchQuery] = useState('');
 
   useEffect(() => {
-    loadTasks();
-  }, []);
-
-  useEffect(() => {
-    filterAndSortTasks();
-  }, [tasks, searchQuery, statusFilter, categoryFilter, sortBy]);
+    if (location.pathname === '/dashboard' || location.pathname === '/dashboard/') {
+      loadTasks();
+    }
+  }, [location.pathname]);
 
   const loadTasks = async () => {
     try {
@@ -53,80 +47,17 @@ function DashboardPage() {
     }
   };
 
-  const filterAndSortTasks = () => {
-    let filtered = [...tasks];
-
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(task => 
-        task.description?.toLowerCase().includes(query) ||
-        task.category?.toLowerCase().includes(query) ||
-        task.location?.address?.toLowerCase().includes(query) ||
-        task.location?.city?.toLowerCase().includes(query)
-      );
-    }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(task => task.state === statusFilter);
-    }
-
-    // Category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(task => task.category === categoryFilter);
-    }
-
-    // Sort
-    filtered.sort((a, b) => {
-      const dateA = new Date(a.schedule?.starts_at || a.created_at);
-      const dateB = new Date(b.schedule?.starts_at || b.created_at);
-      
-      switch (sortBy) {
-        case 'newest':
-          return dateB - dateA;
-        case 'oldest':
-          return dateA - dateB;
-        case 'status':
-          return a.state.localeCompare(b.state);
-        default:
-          return dateB - dateA;
-      }
-    });
-
-    setFilteredTasks(filtered);
+  const handleHeroSearch = (e) => {
+    e.preventDefault();
+    navigate('/services');
   };
 
-  const handleDuplicate = async (task) => {
-    try {
-      const loc = {
-        address: task.location?.address || '',
-        city: task.location?.city || 'Cairo',
-        point: {
-          lat: task.location?.point?.lat ?? 30.0444,
-          lng: task.location?.point?.lng ?? 31.2357,
-        },
-      };
-      if (task.location?.district != null && task.location.district !== '') {
-        loc.district = task.location.district;
-      }
-      const taskData = {
-        category: task.category,
-        description: task.description,
-        location: loc,
-        schedule: {
-          starts_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-          flexibility_minutes: task.schedule?.flexibility_minutes || 0,
-        },
-        structured_inputs: task.structured_inputs || {},
-      };
+  const handleCategoryClick = (categoryId) => {
+    navigate(`/services/${categoryId}`);
+  };
 
-      const newTask = await taskAPI.create(taskData);
-      // Navigate to the new task
-      navigate(`/dashboard/tasks/${newTask.id}`);
-    } catch (err) {
-      setError(err.response?.data?.error?.message || 'Failed to duplicate task');
-    }
+  const handleCreateTask = () => {
+    navigate('/services');
   };
 
   const getStateBadgeVariant = (state) => {
@@ -141,7 +72,12 @@ function DashboardPage() {
     return variantMap[state] || 'default';
   };
 
-  const getStateLabel = (state) => {
+  const getStateLabel = (task) => {
+    const state = typeof task === 'string' ? task : task?.state;
+    const bidMode = typeof task === 'object' ? task?.bid_mode : undefined;
+    if (state === 'posted' && bidMode === 'open_for_bids') {
+      return i18n.language === 'ar' ? 'في انتظار العروض' : 'Waiting for offers';
+    }
     const stateMap = {
       draft: t('task.draft'),
       posted: t('task.posted'),
@@ -153,264 +89,257 @@ function DashboardPage() {
     return stateMap[state] || state;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
-      </div>
-    );
-  }
+  const displayedServices = servicesList.slice(0, 8);
+  const displayedTasks = tasks.slice(0, 6);
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">{t('task.myTasks')}</h1>
-        <Button onClick={() => navigate('/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
-          <Plus className="mr-2 h-4 w-4" />
-          {t('task.create')}
-        </Button>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {/* Quick Access Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Link to="/dashboard/profile/payments">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <CreditCard className="h-6 w-6 text-blue-600" />
+    <div className="space-y-0">
+      {/* Hero Section - full-width background (main is full width on dashboard home) */}
+      <section className="bg-gradient-to-br from-teal-50 to-blue-50 py-20 w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <h1 className="text-5xl font-bold text-gray-900 mb-6 leading-tight">
+                {i18n.language === 'ar'
+                  ? 'الحياة اليومية أصبحت أسهل'
+                  : 'Everyday life made easier'}
+              </h1>
+              <p className="text-xl text-gray-700 mb-8">
+                {i18n.language === 'ar'
+                  ? 'تواصل مع مهماتين ماهرين للمساعدة في كل شيء من إصلاحات المنزل إلى المهمات.'
+                  : 'Connect with skilled Taskers for help with everything from home repairs to errands.'}
+              </p>
+              <form onSubmit={handleHeroSearch} className="flex gap-3 mb-6">
+                <Input
+                  placeholder={i18n.language === 'ar' ? 'ما الذي تحتاج المساعدة فيه؟' : 'What do you need help with?'}
+                  className="flex-1 h-12 text-base"
+                  value={heroSearchQuery}
+                  onChange={(e) => setHeroSearchQuery(e.target.value)}
+                />
+                <Button type="submit" className="bg-teal-600 hover:bg-teal-700 h-12 px-8">
+                  {i18n.language === 'ar' ? 'ابدأ' : 'Get Started'}
+                </Button>
+              </form>
+              <div className="flex items-center gap-6 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="text-teal-600 shrink-0" size={20} />
+                  <span>{i18n.language === 'ar' ? 'مهماتون معتمدون' : 'Vetted Taskers'}</span>
                 </div>
-                <div>
-                  <CardTitle className="text-lg">{t('payment.paymentMethods')}</CardTitle>
-                  <CardDescription>{t('payment.manageMethods')}</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-        </Link>
-        <Link to="/dashboard/payments/history">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <FileText className="h-6 w-6 text-green-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">{t('payment.paymentHistory')}</CardTitle>
-                  <CardDescription>{t('payment.viewAllPayments')}</CardDescription>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="text-teal-600 shrink-0" size={20} />
+                  <span>{i18n.language === 'ar' ? 'خدمة في نفس اليوم' : 'Same-day service'}</span>
                 </div>
               </div>
-            </CardHeader>
-          </Card>
-        </Link>
-        <Link to="/dashboard/payments/analytics">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <BarChart3 className="h-6 w-6 text-purple-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">{t('payment.spendingAnalytics')}</CardTitle>
-                  <CardDescription>{t('payment.viewSpendingInsights')}</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-        </Link>
-      </div>
-
-      {/* Search and Filter Section */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                type="text"
-                placeholder={t('task.searchPlaceholder')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+            </div>
+            <div className="relative hidden md:block">
+              <img
+                src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600"
+                alt={i18n.language === 'ar' ? 'مهمات يساعد في تحسين المنزل' : 'Tasker helping with home improvement'}
+                className="rounded-2xl shadow-2xl"
               />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Rest of content - constrained width like other dashboard pages */}
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
+            {error}
+          </div>
+        )}
+
+        {/* Popular Services - same as home before creating tasks */}
+        <section className="py-16">
+          <div>
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              {i18n.language === 'ar' ? 'الخدمات الشائعة' : 'Popular services'}
+            </h2>
+            <p className="text-xl text-gray-600">
+              {i18n.language === 'ar' ? 'كيف يمكننا مساعدتك؟' : 'What can we help you with?'}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {displayedServices.map((service) => (
+              <button
+                key={service.id}
+                onClick={() => handleCategoryClick(service.id)}
+                className="group bg-white rounded-xl border-2 border-gray-200 overflow-hidden hover:border-teal-500 hover:shadow-xl transition-all duration-300 text-left w-full cursor-pointer"
+              >
+                <div className="relative h-48 overflow-hidden">
+                  <img
+                    src={service.image}
+                    alt={service.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                  />
+                  <div className="absolute top-4 left-4 text-4xl bg-white rounded-lg p-2 shadow-md">
+                    {service.icon}
+                  </div>
+                </div>
+                <div className="p-5">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-teal-600 transition-colors">
+                    {i18n.language === 'ar' ? service.nameAr : service.name}
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-3">
+                    {i18n.language === 'ar' ? service.descriptionAr : service.description}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-teal-600">{service.averagePrice}</span>
+                    <ArrowRight className="text-gray-400 group-hover:text-teal-600 group-hover:translate-x-1 transition-all" size={20} />
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="text-center mt-10">
             <Button
+              onClick={handleCreateTask}
               variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className="w-full sm:w-auto"
+              size="lg"
+              className="border-2 hover:border-teal-600 hover:text-teal-600"
             >
-              <Filter className="mr-2 h-4 w-4" />
-              {t('task.filters')}
+              {i18n.language === 'ar' ? 'إنشاء مهمة جديدة' : 'Create a New Task'}
+              <ArrowRight className="ml-2" size={20} />
             </Button>
           </div>
-        </CardHeader>
-
-        {showFilters && (
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('task.filterByStatus')}
-                </label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="all">{t('task.allStatuses')}</option>
-                  <option value="draft">{t('task.draft')}</option>
-                  <option value="posted">{t('task.posted')}</option>
-                  <option value="matching">{t('task.matching')}</option>
-                  <option value="accepted">{t('task.accepted')}</option>
-                  <option value="in_progress">{t('task.inProgress')}</option>
-                  <option value="completed">{t('task.completed')}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('task.filterByCategory')}
-                </label>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="all">{t('task.allCategories')}</option>
-                  {CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('task.sortBy')}
-                </label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="newest">{t('task.newestFirst')}</option>
-                  <option value="oldest">{t('task.oldestFirst')}</option>
-                  <option value="status">{t('task.sortByStatus')}</option>
-                </select>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setSearchQuery('');
-                setStatusFilter('all');
-                setCategoryFilter('all');
-                setSortBy('newest');
-              }}
-              className="mt-4"
-            >
-              <X className="mr-2 h-4 w-4" />
-              {t('task.clearFilters')}
-            </Button>
-          </CardContent>
-        )}
-      </Card>
-
-      {/* Results count */}
-      {tasks.length > 0 && (
-        <div className="text-sm text-gray-600">
-          {t('task.showingResults', { count: filteredTasks.length, total: tasks.length })}
         </div>
-      )}
+      </section>
 
-      {/* Tasks Grid */}
-      {tasks.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="text-gray-500 mb-4">{t('task.noTasks')}</p>
-            <Button onClick={() => navigate('/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
-              <Plus className="mr-2 h-4 w-4" />
-              {t('task.create')}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : filteredTasks.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="text-gray-500 mb-4">{t('task.noMatchingTasks')}</p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearchQuery('');
-                setStatusFilter('all');
-                setCategoryFilter('all');
-              }}
-            >
-              {t('task.clearFilters')}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTasks.map((task) => (
-            <Card key={task.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg capitalize">{task.category}</CardTitle>
-                  <Badge variant={getStateBadgeVariant(task.state)}>
-                    {getStateLabel(task.state)}
-                  </Badge>
-                </div>
-                <CardDescription className="mt-2 line-clamp-2">
-                  {task.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    <span className="truncate">{task.location?.address || task.location?.city}</span>
+      {/* Quick Access */}
+      <section className="py-12 bg-gray-50 rounded-2xl">
+        <div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link to="/dashboard/profile/payments">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <CreditCard className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{t('payment.paymentMethods')}</CardTitle>
+                      <CardDescription>{t('payment.manageMethods')}</CardDescription>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    <span>
-                      {new Date(task.schedule?.starts_at || task.created_at).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}
-                    </span>
+                </CardHeader>
+              </Card>
+            </Link>
+            <Link to="/dashboard/payments/history">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <FileText className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{t('payment.paymentHistory')}</CardTitle>
+                      <CardDescription>{t('payment.viewAllPayments')}</CardDescription>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => navigate(`/dashboard/tasks/${task.id}`)}
-                  >
-                    {i18n.language === 'ar' ? 'عرض' : 'View'}
-                  </Button>
-                  {task.state === 'completed' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleDuplicate(task);
-                      }}
-                      title={i18n.language === 'ar' ? 'نسخ' : 'Duplicate'}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                </CardHeader>
+              </Card>
+            </Link>
+            <Link to="/dashboard/payments/analytics">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <BarChart3 className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{t('payment.spendingAnalytics')}</CardTitle>
+                      <CardDescription>{t('payment.viewSpendingInsights')}</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Your tasks - added to home (same as before creating tasks + tasks only) */}
+      <section className="py-16">
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <h2 className="text-3xl font-bold text-gray-900">{t('task.myTasks')}</h2>
+            <Link to="/dashboard/my-tasks">
+              <Button variant="outline" size="lg">
+                {i18n.language === 'ar' ? 'عرض الكل' : 'View all'}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600" />
+            </div>
+          ) : tasks.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <p className="text-gray-500 mb-4">{t('task.noTasks')}</p>
+                <Button onClick={() => navigate('/tasks/create')} className="bg-teal-600 hover:bg-teal-700">
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t('task.create')}
+                </Button>
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayedTasks.map((task) => (
+                <Card key={task.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="text-lg capitalize">{task.category}</CardTitle>
+                      <Badge variant={getStateBadgeVariant(task.state)}>
+                        {getStateLabel(task)}
+                      </Badge>
+                    </div>
+                    <CardDescription className="mt-2 line-clamp-2">
+                      {task.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{task.location?.address || task.location?.city}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 shrink-0" />
+                        <span>
+                          {new Date(task.schedule?.starts_at || task.created_at).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full mt-4"
+                      onClick={() => navigate(task.state === 'draft' ? `/dashboard/tasks/${task.id}/find-tasker` : `/dashboard/tasks/${task.id}`)}
+                    >
+                      {i18n.language === 'ar' ? 'عرض' : 'View'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+          {tasks.length > 6 && (
+            <div className="text-center mt-8">
+              <Link to="/dashboard/my-tasks">
+                <Button variant="outline" size="lg">
+                  {i18n.language === 'ar' ? 'عرض كل المهام' : 'View all tasks'}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
-      )}
+      </section>
+      </div>
     </div>
   );
 }

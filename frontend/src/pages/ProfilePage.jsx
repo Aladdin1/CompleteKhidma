@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { userAPI } from '../services/api';
 import useAuthStore from '../store/authStore';
-import i18n from '../i18n';
 import MapPicker from '../components/MapPicker';
 import '../styles/ProfilePage.css';
 
@@ -58,9 +57,6 @@ function ProfilePage() {
     sms_enabled: false,
     email_enabled: false,
   });
-
-  // Account deletion
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     loadProfile();

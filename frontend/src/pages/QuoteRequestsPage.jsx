@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { MapPin, Calendar } from 'lucide-react';
 
 export default function QuoteRequestsPage() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);

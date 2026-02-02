@@ -19,6 +19,7 @@ function PaymentHistoryPage() {
 
   useEffect(() => {
     loadPayments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadPayments uses filters
   }, [filters]);
 
   const loadPayments = async () => {
@@ -115,7 +116,7 @@ function PaymentHistoryPage() {
       {error && <div className="error">{error}</div>}
 
       {/* Debug: Test modal button - remove in production */}
-      {process.env.NODE_ENV === 'development' && (
+      {import.meta.env.DEV && (
         <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f0f0f0', borderRadius: '4px' }}>
           <button
             onClick={() => {

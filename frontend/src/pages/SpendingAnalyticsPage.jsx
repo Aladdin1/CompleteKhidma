@@ -12,6 +12,7 @@ function SpendingAnalyticsPage() {
 
   useEffect(() => {
     loadAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadAnalytics uses period
   }, [period]);
 
   const loadAnalytics = async () => {

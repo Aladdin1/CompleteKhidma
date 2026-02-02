@@ -2,7 +2,6 @@
  * Test utilities – render with providers (Router, etc.).
  */
 
-import React from 'react';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
@@ -22,4 +21,5 @@ export function renderWithProviders(ui, { route = '/', ...opts } = {}) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- re-export for tests
 export * from '@testing-library/react';

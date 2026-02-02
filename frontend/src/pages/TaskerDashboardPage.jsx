@@ -6,7 +6,7 @@ import useAuthStore from '../store/authStore';
 import '../styles/TaskerDashboardPage.css';
 
 function TaskerDashboardPage() {
-  const { t } = useTranslation();
+  useTranslation(); // i18n available when needed
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [profile, setProfile] = useState(null);

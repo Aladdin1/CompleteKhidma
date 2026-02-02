@@ -7,7 +7,7 @@ import Footer from '@/components/Footer';
 import { useTranslation } from 'react-i18next';
 
 const HowItWorks = () => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   
   return (
     <div className="min-h-screen flex flex-col">

@@ -76,6 +76,84 @@ router.get('/list', optionalAuth, async (req, res, next) => {
 });
 
 /**
+ * GET /api/v1/taskers/available-by-location?category=cleaning&lat=30.0&lng=31.2
+ * Public: list taskers for a category ordered by distance from client (lat, lng). No auth.
+ */
+router.get('/available-by-location', async (req, res, next) => {
+  try {
+    const category = req.query.category;
+    const lat = req.query.lat != null ? parseFloat(req.query.lat) : null;
+    const lng = req.query.lng != null ? parseFloat(req.query.lng) : null;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+
+    if (!category || typeof category !== 'string') {
+      return res.status(400).json({
+        error: { code: 'MISSING_CATEGORY', message: 'Query "category" is required.' }
+      });
+    }
+    const slug = String(category).trim().toLowerCase();
+    if (!slug) {
+      return res.status(400).json({ error: { code: 'INVALID_CATEGORY', message: 'Category cannot be empty.' } });
+    }
+
+    const completedResult = await pool.query(
+      `SELECT b.tasker_id, COUNT(*)::int AS completed_count
+       FROM bookings b WHERE b.status = 'completed' GROUP BY b.tasker_id`
+    );
+    const completedMap = Object.fromEntries(
+      completedResult.rows.map((r) => [r.tasker_id, r.completed_count])
+    );
+
+    const hasCoords = typeof lat === 'number' && !Number.isNaN(lat) && typeof lng === 'number' && !Number.isNaN(lng);
+    const clientLat = hasCoords ? lat : 30.0444;
+    const clientLng = hasCoords ? lng : 31.2357;
+
+    const taskersResult = await pool.query(
+      `SELECT u.id AS user_id, u.full_name,
+              tp.rating_avg, tp.rating_count, tp.status AS tasker_status,
+              tsa.center_lat AS tasker_lat, tsa.center_lng AS tasker_lng,
+              (6371 * acos(
+                LEAST(1.0, cos(radians($2)) * cos(radians(tsa.center_lat)) *
+                  cos(radians(tsa.center_lng) - radians($3)) +
+                  sin(radians($2)) * sin(radians(tsa.center_lat)))
+              )) AS distance_km
+       FROM users u
+       JOIN tasker_profiles tp ON tp.user_id = u.id
+       JOIN tasker_categories tc ON tc.tasker_id = u.id AND LOWER(TRIM(tc.category)) = $1
+       LEFT JOIN tasker_service_areas tsa ON tsa.tasker_id = u.id
+       WHERE u.role = 'tasker'
+         AND tp.status IN ('verified', 'active')
+       ORDER BY
+         CASE WHEN tsa.center_lat IS NOT NULL AND tsa.center_lng IS NOT NULL THEN 0 ELSE 1 END,
+         (6371 * acos(
+           LEAST(1.0, cos(radians($2)) * cos(radians(tsa.center_lat)) *
+             cos(radians(tsa.center_lng) - radians($3)) +
+             sin(radians($2)) * sin(radians(tsa.center_lat)))
+         )) ASC NULLS LAST,
+         tp.rating_avg DESC NULLS LAST,
+         tp.rating_count DESC
+       LIMIT $4`,
+      [slug, clientLat, clientLng, limit]
+    );
+
+    const items = taskersResult.rows.map((row) => ({
+      id: row.user_id,
+      user_id: row.user_id,
+      name: row.full_name || 'Tasker',
+      full_name: row.full_name || 'Tasker',
+      rating: parseFloat(row.rating_avg) || 0,
+      reviews: parseInt(row.rating_count, 10) || 0,
+      completedTasks: completedMap[row.user_id] || 0,
+      distance_km: row.distance_km != null ? parseFloat(row.distance_km.toFixed(2)) : null,
+    }));
+
+    res.json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/v1/taskers/me/profile
  * Get my tasker profile
  * NOTE: Must be defined BEFORE /:tasker_id/profile to prevent route conflict

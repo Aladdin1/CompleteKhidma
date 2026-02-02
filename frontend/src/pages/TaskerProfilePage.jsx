@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { taskerAPI, userAPI } from '../services/api';
 import useAuthStore from '../store/authStore';
-import i18n from '../i18n';
 import '../styles/TaskerProfilePage.css';
 
 const CATEGORIES = [

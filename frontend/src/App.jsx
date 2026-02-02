@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 import LoginPage from './pages/LoginPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
@@ -7,10 +7,10 @@ import BrowseServices from './pages/BrowseServices';
 import ServiceDetails from './pages/ServiceDetails';
 import HowItWorks from './pages/HowItWorks';
 import BecomeTaskerPublic from './pages/BecomeTaskerPublic';
-import BookTask from './pages/BookTask';
 import DashboardPage from './pages/DashboardPage';
-import TaskCreatePage from './pages/TaskCreatePage';
+import MyTasksPage from './pages/MyTasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
+import FindTaskerPage from './pages/FindTaskerPage';
 import ProfilePage from './pages/ProfilePage';
 import PaymentMethodsPage from './pages/PaymentMethodsPage';
 import PaymentHistoryPage from './pages/PaymentHistoryPage';
@@ -42,6 +42,17 @@ function TaskIdRedirect() {
   return <Navigate to={`/dashboard/tasks/${taskId}`} replace />;
 }
 
+function BookRedirect() {
+  const { serviceId } = useParams();
+  return <Navigate to={`/services/${serviceId}`} replace />;
+}
+
+function TaskCreateRedirect() {
+  const [searchParams] = useSearchParams();
+  const category = searchParams.get('category');
+  return <Navigate to={category ? `/services/${category}` : '/services'} replace />;
+}
+
 function PrivateRoute({ children }) {
   const { isAuthenticated } = useAuthStore();
   return isAuthenticated ? children : <Navigate to="/login" replace />;
@@ -66,8 +77,8 @@ function App() {
         <Route path="/services/:categoryId" element={<ServiceDetails />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/become-tasker" element={<BecomeTaskerPublic />} />
-        <Route path="/book/:serviceId" element={<BookTask />} />
-        <Route path="/tasks/create" element={<TaskCreatePage />} />
+        <Route path="/book/:serviceId" element={<BookRedirect />} />
+        <Route path="/tasks/create" element={<TaskCreateRedirect />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<OAuthCallbackPage />} />
 
@@ -101,6 +112,8 @@ function App() {
         >
           {/* Client routes */}
           <Route index element={<DashboardPage />} />
+          <Route path="my-tasks" element={<MyTasksPage />} />
+          <Route path="tasks/:taskId/find-tasker" element={<FindTaskerPage />} />
           <Route path="tasks/:taskId" element={<TaskDetailPage />} />
           <Route path="taskers/:taskerId" element={<TaskerViewPage />} />
           <Route path="profile" element={<ProfilePage />} />

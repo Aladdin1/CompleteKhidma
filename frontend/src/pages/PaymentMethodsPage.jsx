@@ -25,6 +25,7 @@ function PaymentMethodsPage() {
 
   useEffect(() => {
     loadPaymentMethods();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
   }, []);
 
   const loadPaymentMethods = async () => {

@@ -37,7 +37,7 @@ function TaskCreatePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [addresses, setAddresses] = useState([]);
-  const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [, setLoadingAddresses] = useState(true);
   const [addressMode, setAddressMode] = useState('saved'); // 'saved' or 'manual'
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [formData, setFormData] = useState({

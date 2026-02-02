@@ -5,7 +5,7 @@ import { taskerAPI, taskAPI } from '../services/api';
 import '../styles/MyApplicationsPage.css';
 
 function MyApplicationsPage() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);

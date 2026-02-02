@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Star, MapPin, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Star, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { taskAPI, bidAPI } from '@/services/api';
 import useAuthStore from '@/store/authStore';
 import ReviewForm from '@/components/ReviewForm';
@@ -16,7 +16,7 @@ function TaskDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [task, setTask] = useState(null);
-  const [candidates, setCandidates] = useState([]);
+  const [, setCandidates] = useState([]);
   const [availableTaskers, setAvailableTaskers] = useState([]);
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,8 @@ function TaskDetailPage() {
   const [showCandidates, setShowCandidates] = useState(false);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [bidsLoading, setBidsLoading] = useState(false);
-  const [canAccept, setCanAccept] = useState(false);
+  const [nearbyTaskersCount, setNearbyTaskersCount] = useState(null);
+  const [, setCanAccept] = useState(false);
   const [quoteForm, setQuoteForm] = useState({ amount: '', message: '' });
   const [submittingQuote, setSubmittingQuote] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -38,6 +39,7 @@ function TaskDetailPage() {
 
   useEffect(() => {
     loadTask();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadTask uses taskId
   }, [taskId]);
 
   const loadTask = async () => {
@@ -64,6 +66,8 @@ function TaskDetailPage() {
       // Load bids if task is posted and client owns it (show any pending quotes)
       if ((taskData.state === 'posted' || taskData.state === 'matching') && taskData.client_id === user?.id && !taskData.assigned_tasker) {
         loadBids();
+        // Load nearby taskers count for "stay tuned" message when no quotes yet
+        taskAPI.getAvailableTaskers(taskId, { count_only: 'true' }).then((data) => setNearbyTaskersCount(data.count ?? 0)).catch(() => setNearbyTaskersCount(0));
       }
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to load task');
@@ -156,6 +160,7 @@ function TaskDetailPage() {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars -- used when showing candidates UI
   const loadCandidates = async (taskOverride = null) => {
     const ctx = taskOverride || task;
     if (!ctx || !user || ctx.client_id !== user.id) return;
@@ -200,6 +205,7 @@ function TaskDetailPage() {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars -- used when selecting a tasker from list
   const handleSelectTasker = async (taskerId) => {
     if (!window.confirm('هل أنت متأكد من اختيار هذا العامل؟')) return;
 
@@ -318,7 +324,7 @@ function TaskDetailPage() {
         {/* Header — same vibe as /services/cleaning */}
         <section className="bg-gradient-to-br from-teal-50 to-blue-50 py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <Link to="/dashboard" className="inline-flex items-center text-gray-700 hover:text-teal-600 mb-6 transition-colors">
+            <Link to="/dashboard/my-tasks" className="inline-flex items-center text-gray-700 hover:text-teal-600 mb-6 transition-colors">
               <ArrowLeft className="mr-2" size={20} />
               {i18n.language === 'ar' ? 'العودة إلى المهام' : 'Back to my tasks'}
             </Link>
@@ -506,27 +512,17 @@ function TaskDetailPage() {
           </section>
         )}
 
-        {/* Bid-based: Quotes for this task; "Choose taskers" only when invite_only (US-C-102/103) */}
+        {/* Posted task: show received quotes only; no "Load available taskers" */}
         {isTaskOwner && (task.state === 'posted' || task.state === 'matching') && !task.assigned_tasker && (
           <section className="py-12 bg-gray-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                {task.bid_mode === 'open_for_bids'
-                  ? (i18n.language === 'ar' ? 'العروض الواردة' : 'Quotes for this task')
-                  : (i18n.language === 'ar' ? 'العروض والطلبات' : 'Quotes & choose tasker')}
+                {i18n.language === 'ar' ? 'العروض الواردة' : 'Quotes for this task'}
               </h2>
-              {task.bid_mode === 'open_for_bids' && (
-                <p className="text-gray-600 mb-6">
-                  {i18n.language === 'ar' ? 'هذه المهمة مفتوحة للعروض – أي عامل متطابق يمكنه تقديم سعره.' : 'This task is open for bids – any matching tasker can submit a quote.'}
-                </p>
-              )}
 
               {/* Quotes received */}
-              {bids.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                    {i18n.language === 'ar' ? 'العروض الواردة' : 'Quotes received'}
-                  </h3>
+              {bids.length > 0 ? (
+                <div>
                   {bidsLoading ? (
                     <div className="animate-pulse h-24 bg-gray-100 rounded-lg" />
                   ) : (
@@ -566,83 +562,27 @@ function TaskDetailPage() {
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* Choose taskers & request quote — only when invite_only (US-C-103) */}
-              {task.bid_mode !== 'open_for_bids' && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                  {i18n.language === 'ar' ? 'اختر عاملاً واطلب سعره' : 'Choose a tasker and request a quote'}
-                </h3>
-                {!showCandidates && !candidatesLoading && (
-                  <div className="flex justify-center py-8">
-                    <Button onClick={() => loadAvailableTaskers()} className="bg-teal-600 hover:bg-teal-700">
-                      {i18n.language === 'ar' ? 'عرض العمال المتاحين' : 'Load available taskers'}
-                    </Button>
-                  </div>
-                )}
-                {candidatesLoading && (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map((i) => (
-                      <Card key={i} className="p-6 animate-pulse">
-                        <div className="flex gap-6">
-                          <div className="w-16 h-16 rounded-full bg-gray-200" />
-                          <div className="flex-1 space-y-2">
-                            <div className="h-5 w-32 bg-gray-200 rounded" />
-                            <div className="h-4 w-48 bg-gray-100 rounded" />
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-                {showCandidates && !candidatesLoading && availableTaskers.length === 0 && (
-                  <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-                    <p className="text-gray-600 mb-4">{i18n.language === 'ar' ? 'لا يوجد عاملون متاحون لهذه الفئة/المكان حالياً' : 'No taskers available for this category or area.'}</p>
-                    <Button onClick={() => loadAvailableTaskers()} variant="outline">{i18n.language === 'ar' ? 'تحديث' : 'Refresh'}</Button>
-                  </div>
-                )}
-                {showCandidates && !candidatesLoading && availableTaskers.length > 0 && (
-                  <div className="space-y-4">
-                    {availableTaskers.map((t) => {
-                      const alreadyRequested = bids.some((b) => b.tasker_id === t.id && (b.status === 'requested' || b.status === 'pending'));
-                      return (
-                        <Card key={t.id} className="p-6 hover:shadow-lg transition-shadow">
-                          <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-                            <div className="flex items-center gap-4">
-                              <Avatar className="w-14 h-14">
-                                <AvatarFallback>{(t.name || t.full_name || 'T').slice(0, 2).toUpperCase()}</AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <h3 className="font-bold text-gray-900">{t.name || t.full_name || 'Tasker'}</h3>
-                                <div className="flex items-center gap-1 text-sm text-gray-600">
-                                  <Star className="text-yellow-500 fill-yellow-500" size={14} />
-                                  {(t.rating ?? 0).toFixed(1)} ({t.reviews ?? 0} {i18n.language === 'ar' ? 'تقييم' : 'reviews'})
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                className="bg-teal-600 hover:bg-teal-700"
-                                onClick={() => handleRequestQuote(t.id)}
-                                disabled={alreadyRequested}
-                              >
-                                {alreadyRequested ? (i18n.language === 'ar' ? 'تم الطلب' : 'Quote requested') : (i18n.language === 'ar' ? 'طلب السعر' : 'Request quote')}
-                              </Button>
-                              <Button variant="outline" size="sm" asChild>
-                                <Link to={`/dashboard/taskers/${t.id}`} state={{ from: `/dashboard/tasks/${taskId}` }}>
-                                  {i18n.language === 'ar' ? 'الملف' : 'Profile'}
-                                </Link>
-                              </Button>
-                            </div>
-                          </div>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              ) : (
+                <Card className="p-8 text-center max-w-xl mx-auto border-teal-100 bg-teal-50/50">
+                  <p className="text-lg text-gray-800 font-medium mb-2">
+                    {i18n.language === 'ar' ? 'لا توجد عروض بعد — لا تفوّت الفرصة!' : 'No quotes yet — stay tuned!'}
+                  </p>
+                  <p className="text-gray-600 mb-4">
+                    {i18n.language === 'ar'
+                      ? 'تم مشاركة مهمتك مع المهمات في منطقتك. العروض ستصل قريباً — ننصحك بالعودة بعد قليل.'
+                      : 'We\'ve shared your task with taskers in your area. Quotes are on their way — check back soon!'}
+                  </p>
+                  {nearbyTaskersCount != null && nearbyTaskersCount > 0 && (
+                    <p className="text-sm text-teal-700 font-medium">
+                      {i18n.language === 'ar'
+                        ? `مهمات ${nearbyTaskersCount} في منطقتك تلقوا مهمتك.`
+                        : `${nearbyTaskersCount} tasker${nearbyTaskersCount === 1 ? '' : 's'} in your area ${nearbyTaskersCount === 1 ? 'has' : 'have'} received your task.`}
+                    </p>
+                  )}
+                  <p className="text-sm text-gray-500 mt-4">
+                    {i18n.language === 'ar' ? 'شكراً لصبرك 🙏' : 'Thanks for your patience — we\'re on it!'}
+                  </p>
+                </Card>
               )}
             </div>
           </section>
@@ -730,8 +670,8 @@ function TaskDetailPage() {
         <section className="py-8 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap gap-3">
             {isTaskOwner && task.state === 'draft' && (
-              <Button onClick={() => taskAPI.post(taskId).then(() => loadTask())} className="bg-teal-600 hover:bg-teal-700">
-                {t('task.postTask')}
+              <Button onClick={() => navigate(`/dashboard/tasks/${taskId}/find-tasker`)} className="bg-teal-600 hover:bg-teal-700">
+                {i18n.language === 'ar' ? 'ابحث عن مهمات واحصل على أفضل عرض' : 'Find taskers & get the best offer'}
               </Button>
             )}
             {isTaskOwner && ['draft', 'posted', 'matching'].includes(task.state) && (

@@ -88,7 +88,7 @@ export const authAPI = {
   initiateGoogleOAuth: async (redirectUri = null) => {
     // First check if OAuth is configured
     try {
-      const checkResponse = await api.get('/auth/oauth/google/check');
+      await api.get('/auth/oauth/google/check');
       // If check passes, proceed with redirect
     } catch (err) {
       // If OAuth is not configured, throw error to show in UI
@@ -108,7 +108,7 @@ export const authAPI = {
   initiateFacebookOAuth: async (redirectUri = null) => {
     // First check if OAuth is configured
     try {
-      const checkResponse = await api.get('/auth/oauth/facebook/check');
+      await api.get('/auth/oauth/facebook/check');
       // If check passes, proceed with redirect
     } catch (err) {
       // If OAuth is not configured, throw error to show in UI
@@ -286,6 +286,14 @@ export const taskerAPI = {
   listByCategory: async (category, params = {}) => {
     const response = await api.get('/taskers/list', {
       params: { category, limit: params.limit ?? 20 }
+    });
+    return response.data;
+  },
+
+  /** Public: taskers for category ordered by distance from (lat, lng). No auth required. */
+  getAvailableByLocation: async (category, lat, lng, params = {}) => {
+    const response = await api.get('/taskers/available-by-location', {
+      params: { category, lat, lng, limit: params.limit ?? 50 }
     });
     return response.data;
   },

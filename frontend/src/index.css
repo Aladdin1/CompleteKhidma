@@ -219,3 +219,60 @@ input:focus, textarea:focus, select:focus {
     transform: translateY(0);
   }
 }
+
+/* Service flow (stepper / task create) components */
+@layer components {
+  .step-card {
+    @apply bg-card rounded-xl p-6 shadow-sm border border-border transition-all duration-300;
+  }
+  .location-option {
+    @apply flex items-center gap-3 p-4 rounded-xl border-2 border-transparent bg-muted/50 cursor-pointer transition-all duration-200 hover:border-primary/30 hover:bg-accent/50;
+  }
+  .location-option-active {
+    @apply border-primary bg-accent;
+  }
+  .stepper-dot {
+    @apply w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300;
+  }
+  .stepper-dot-active {
+    @apply bg-teal-600 text-white shadow-md;
+  }
+  .stepper-dot-completed {
+    @apply bg-teal-600 text-white;
+  }
+  .stepper-dot-pending {
+    @apply bg-muted text-muted-foreground;
+  }
+  .stepper-line {
+    @apply h-0.5 flex-1 mx-2 rounded-full transition-all duration-500;
+  }
+  .stepper-line-completed {
+    @apply bg-teal-600;
+  }
+  .stepper-line-pending {
+    @apply bg-border;
+  }
+  .input-field-flow {
+    @apply w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-200;
+  }
+  .btn-flow-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-flow-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-all duration-200 shadow-sm hover:shadow-md;
+  }
+  .btn-flow-outline {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold border-2 border-border bg-transparent text-foreground hover:bg-muted transition-all duration-200;
+  }
+  .map-container-flow {
+    @apply rounded-xl overflow-hidden border border-border shadow-sm;
+  }
+}
+@layer utilities {
+  .gradient-hero-flow {
+    background: linear-gradient(135deg, hsl(174 72% 40%) 0%, hsl(174 72% 30%) 100%);
+  }
+  .shadow-medium-flow {
+    box-shadow: 0 8px 30px -8px rgb(0 0 0 / 0.12);
+  }
+}

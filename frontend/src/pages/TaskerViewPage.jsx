@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Star, CheckCircle, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,8 @@ import { taskerAPI } from '@/services/api';
 
 function TaskerViewPage() {
   const { taskerId } = useParams();
-  const navigate = useNavigate();
   const location = useLocation();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

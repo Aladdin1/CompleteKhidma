@@ -22,6 +22,7 @@ export function ToastProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- useToast is a valid export
 export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) return { showToast: () => {} };

@@ -105,6 +105,9 @@ const Navbar = ({ variant = 'auto' }) => {
                       {i18n.language === 'ar' ? 'الإدارة' : 'Admin'}
                     </Link>
                     <Link to="/dashboard" className={`text-sm ${linkClass}`}>
+                      {i18n.language === 'ar' ? 'الرئيسية' : 'Home'}
+                    </Link>
+                    <Link to="/dashboard/my-tasks" className={`text-sm ${linkClass}`}>
                       {t('task.myTasks')}
                     </Link>
                     <Link to="/dashboard/profile" className={`text-sm ${linkClass}`}>
@@ -151,6 +154,9 @@ const Navbar = ({ variant = 'auto' }) => {
                 {user?.role === 'client' && (
                   <>
                     <Link to="/dashboard" className={`text-sm ${linkClass}`}>
+                      {i18n.language === 'ar' ? 'الرئيسية' : 'Home'}
+                    </Link>
+                    <Link to="/dashboard/my-tasks" className={`text-sm ${linkClass}`}>
                       {t('task.myTasks')}
                     </Link>
                     <Link to="/tasks/create" className={`text-sm ${linkClass}`}>
@@ -178,6 +184,9 @@ const Navbar = ({ variant = 'auto' }) => {
                 {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client' && user?.role !== 'admin' && user?.role !== 'ops')) && (
                   <>
                     <Link to="/dashboard" className={`text-sm ${linkClass}`}>
+                      {i18n.language === 'ar' ? 'الرئيسية' : 'Home'}
+                    </Link>
+                    <Link to="/dashboard/my-tasks" className={`text-sm ${linkClass}`}>
                       {t('task.myTasks')}
                     </Link>
                     <Link to="/dashboard/messages" className={`relative text-sm ${linkClass}`}>
@@ -266,6 +275,9 @@ const Navbar = ({ variant = 'auto' }) => {
                       {i18n.language === 'ar' ? 'الإدارة' : 'Admin'}
                     </Link>
                     <Link to="/dashboard" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {i18n.language === 'ar' ? 'الرئيسية' : 'Home'}
+                    </Link>
+                    <Link to="/dashboard/my-tasks" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('task.myTasks')}
                     </Link>
                     <Link to="/dashboard/profile" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
@@ -308,6 +320,9 @@ const Navbar = ({ variant = 'auto' }) => {
                 {user?.role === 'client' && (
                   <>
                     <Link to="/dashboard" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {i18n.language === 'ar' ? 'الرئيسية' : 'Home'}
+                    </Link>
+                    <Link to="/dashboard/my-tasks" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('task.myTasks')}
                     </Link>
                     <Link to="/tasks/create" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
@@ -331,6 +346,9 @@ const Navbar = ({ variant = 'auto' }) => {
                 {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client' && user?.role !== 'admin' && user?.role !== 'ops')) && (
                   <>
                     <Link to="/dashboard" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
+                      {i18n.language === 'ar' ? 'الرئيسية' : 'Home'}
+                    </Link>
+                    <Link to="/dashboard/my-tasks" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('task.myTasks')}
                     </Link>
                     <Link to="/dashboard/messages" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
