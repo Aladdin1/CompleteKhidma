@@ -193,6 +193,52 @@ export const requireRole = (...roles) => {
 };
 
 /**
+ * Admin area: allow admin/ops for all routes; allow customer_service for support-tickets and user lookup only.
+ * Customer service can: handle tickets, look up client/tasker profile, create support ticket for a user.
+ */
+export const requireAdminOrSupportRole = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Authentication required'
+      }
+    });
+  }
+  const userRole = req.user.role;
+  const isSupportTicketPath = req.path.startsWith('/support-tickets');
+  // Customer service may list users and view user profile (read-only) to create tickets
+  const isUserLookupPath = req.method === 'GET' && (
+    req.path === '/users' ||
+    /^\/users\/[^/]+$/.test(req.path) ||
+    /^\/users\/[^/]+\/tasks$/.test(req.path)
+  );
+  // Customer service may view task list and task details/history (read-only) when linked from a ticket
+  const isTaskReadPath = req.method === 'GET' && (
+    req.path === '/tasks' ||
+    req.path.startsWith('/tasks/') ||
+    (req.originalUrl && req.originalUrl.includes('/admin/tasks'))
+  );
+  const allowedForSupport = ['admin', 'ops', 'customer_service'];
+  const allowedForRest = ['admin', 'ops'];
+  const allowed = (isSupportTicketPath || isUserLookupPath || isTaskReadPath) ? allowedForSupport : allowedForRest;
+  if (!allowed.includes(userRole)) {
+    const msg = (isSupportTicketPath || isUserLookupPath || isTaskReadPath)
+      ? `This area requires: ${allowedForSupport.join(' or ')}.`
+      : `This admin area requires: ${allowedForRest.join(' or ')}. Customer service can only access Support tickets and user lookup.`;
+    return res.status(403).json({
+      error: {
+        code: 'FORBIDDEN',
+        message: msg,
+        current_role: userRole,
+        required_roles: allowed
+      }
+    });
+  }
+  next();
+};
+
+/**
  * Restrict to platform admin only (role === 'admin').
  * Use for user-management endpoints (suspend, ban, etc.); ops can use operational endpoints only.
  */

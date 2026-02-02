@@ -53,7 +53,7 @@ function AdminTasksPage() {
     } catch (err) {
       const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to load tasks';
       const status = err.response?.status;
-      setError(status === 403 ? 'Access denied. You must be logged in as admin or ops.' : status === 401 ? 'Session expired or not logged in.' : msg);
+      setError(status === 403 ? (err.response?.data?.error?.message || 'Access denied.') : status === 401 ? 'Session expired or not logged in.' : msg);
     } finally {
       setLoading(false);
     }

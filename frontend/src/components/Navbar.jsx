@@ -167,7 +167,7 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                   </>
                 )}
-                {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client' && user?.role !== 'admin' && user?.role !== 'ops')) && (
+                {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client' && user?.role !== 'admin' && user?.role !== 'ops' && user?.role !== 'customer_service')) && (
                   <>
                     <Link to="/dashboard" className={`text-sm ${linkClass}`}>
                       {t('task.myTasks')}
@@ -312,7 +312,7 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                   </>
                 )}
-                {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client' && user?.role !== 'admin' && user?.role !== 'ops')) && (
+                {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client' && user?.role !== 'admin' && user?.role !== 'ops' && user?.role !== 'customer_service')) && (
                   <>
                     <Link to="/dashboard" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('task.myTasks')}

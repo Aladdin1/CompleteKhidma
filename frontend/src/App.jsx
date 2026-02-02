@@ -76,12 +76,12 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<OAuthCallbackPage />} />
 
-        {/* Admin Routes (admin or ops role required) */}
+        {/* Admin Routes (admin, ops, or customer_service for support tickets only) */}
         <Route
           path="/admin"
           element={
             <PrivateRoute>
-              <RoleBasedRoute allowedRoles={['admin', 'ops']}>
+              <RoleBasedRoute allowedRoles={['admin', 'ops', 'customer_service']}>
                 <AdminLayout />
               </RoleBasedRoute>
             </PrivateRoute>

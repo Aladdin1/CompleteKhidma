@@ -1,6 +1,7 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, Navigate, useSearchParams } from 'react-router-dom';
 import { LayoutDashboard, ListTodo, Users, AlertCircle, ArrowLeft, FileText, UserCheck, Headphones } from 'lucide-react';
 import Navbar from './Navbar';
+import useAuthStore from '@/store/authStore';
 
 const adminNav = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -12,8 +13,32 @@ const adminNav = [
   { path: '/admin/audit-log', label: 'Audit log', icon: FileText },
 ];
 
+const customerServiceNav = [
+  { path: '/admin/users', label: 'Look up user', icon: Users },
+  { path: '/admin/support-tickets', label: 'Support tickets', icon: Headphones },
+];
+
 function AdminLayout() {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { user } = useAuthStore();
+  const isCustomerService = user?.role === 'customer_service';
+  const navItems = isCustomerService ? customerServiceNav : adminNav;
+
+  // Customer service: Support tickets, user lookup, and task details (when ?taskId= from ticket)
+  const supportTicketPath = '/admin/support-tickets';
+  const usersPath = '/admin/users';
+  const tasksPath = '/admin/tasks';
+  const isViewingTaskFromTicket = location.pathname === tasksPath && searchParams.get('taskId');
+  const isAllowedPath =
+    location.pathname === supportTicketPath ||
+    location.pathname.startsWith(supportTicketPath + '/') ||
+    location.pathname === usersPath ||
+    location.pathname.match(/^\/admin\/users\/[^/]+$/) ||
+    isViewingTaskFromTicket;
+  if (isCustomerService && !isAllowedPath) {
+    return <Navigate to={supportTicketPath} replace />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -28,7 +53,7 @@ function AdminLayout() {
             Back to site
           </Link>
           <nav className="space-y-1">
-            {adminNav.map(({ path, label, icon: Icon }) => {
+            {navItems.map(({ path, label, icon: Icon }) => {
               const active = path === '/admin' ? location.pathname === path : location.pathname.startsWith(path);
               return (
                 <Link

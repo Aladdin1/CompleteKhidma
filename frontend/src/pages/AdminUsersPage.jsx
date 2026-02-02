@@ -4,32 +4,51 @@ import { adminAPI } from '../services/api';
 import useAuthStore from '../store/authStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
 
 function AdminUsersPage() {
   const { user: currentUser } = useAuthStore();
   const isPlatformAdmin = currentUser?.role === 'admin';
+  const isCustomerService = currentUser?.role === 'customer_service';
 
   const [data, setData] = useState({ items: [], next_cursor: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (params = {}) => {
     try {
       setLoading(true);
       setError('');
-      const res = await adminAPI.getUsers({ limit: 50 });
+      const base = { limit: 50 };
+      if (appliedSearch.trim()) base.search = appliedSearch.trim();
+      const res = await adminAPI.getUsers({ ...base, ...params });
       setData({ items: res.items || [], next_cursor: res.next_cursor });
     } catch (err) {
       setError(err.response?.data?.error?.message || err.message || 'Failed to load users');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [appliedSearch]);
 
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  const handleSearch = (e) => {
+    e?.preventDefault();
+    const q = searchInput.trim();
+    setAppliedSearch(q);
+    // Run search immediately so the request includes the param (or clears it)
+    loadUsers({ search: q || undefined });
+  };
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setAppliedSearch('');
+  };
 
   if (loading) {
     return (
@@ -93,18 +112,50 @@ function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Users</h1>
+        <h1 className="text-2xl font-bold text-slate-900">
+          {isCustomerService ? 'Look up user' : 'Users'}
+        </h1>
         <p className="text-slate-600 mt-1">
-          All platform users. {isPlatformAdmin ? 'You can suspend, unsuspend, or ban users. Account status and behavior flags (reports, fraud score) shown.' : 'Suspend/unsuspend/ban requires platform admin role.'}
+          {isCustomerService
+            ? 'Search by phone number or email to open a profile and create a support ticket.'
+            : 'All platform users. ' + (isPlatformAdmin ? 'You can suspend, unsuspend, or ban users. Account status and behavior flags (reports, fraud score) shown.' : 'Suspend/unsuspend/ban requires platform admin role.')}
         </p>
       </div>
+
       <Card className="border-slate-200">
         <CardHeader>
-          <CardTitle>Users ({items.length})</CardTitle>
+          <CardTitle className="flex flex-wrap items-center gap-3">
+            {isCustomerService ? 'Search by phone or email' : 'Users'}
+            <form onSubmit={handleSearch} className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+              <Input
+                type="text"
+                placeholder="Phone or email"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="max-w-xs"
+              />
+              <Button type="submit" variant="outline" size="sm" disabled={loading}>
+                <Search className="h-4 w-4 mr-1" />
+                Search
+              </Button>
+              {appliedSearch && (
+                <Button type="button" variant="ghost" size="sm" onClick={handleClearSearch}>
+                  Clear
+                </Button>
+              )}
+            </form>
+          </CardTitle>
+          {appliedSearch && (
+            <p className="text-sm text-slate-500 mt-1">
+              Showing users matching “{appliedSearch}”. {items.length} result(s).
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
-            <p className="text-slate-500">No users yet.</p>
+            <p className="text-slate-500">
+              {appliedSearch ? `No users match “${appliedSearch}”. Try a different phone or email.` : 'No users yet.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

@@ -1,15 +1,15 @@
 import express from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, requireAdminOnly } from '../../middleware/auth.js';
+import { authenticate, requireRole, requireAdminOnly, requireAdminOrSupportRole } from '../../middleware/auth.js';
 import { pagination, formatPaginatedResponse } from '../../middleware/pagination.js';
 import pool from '../../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
-// All admin routes require admin or ops role
+// Admin area: admin/ops for all routes; customer_service only for support-ticket routes
 router.use(authenticate);
-router.use(requireRole('admin', 'ops'));
+router.use(requireAdminOrSupportRole);
 
 /**
  * POST /api/v1/admin/tasks/:task_id/assign
@@ -336,11 +336,12 @@ router.get('/bookings', pagination, async (req, res, next) => {
 /**
  * GET /api/v1/admin/users
  * List all users. US-A-007: includes account_status, report_count, fraud_risk_score (behavior flags).
+ * Query: role, account_status, phone, email, search (search = phone OR email partial match; for customer service lookup).
  */
 router.get('/users', pagination, async (req, res, next) => {
   try {
     const { limit, cursor } = req.pagination;
-    const { role, account_status: statusFilter } = req.query;
+    const { role, account_status: statusFilter, phone, email, search } = req.query;
 
     let query = `
       SELECT u.id, u.role, u.phone, u.email, u.full_name, u.locale, u.created_at,
@@ -366,6 +367,20 @@ router.get('/users', pagination, async (req, res, next) => {
     if (statusFilter) {
       query += ` AND u.account_status = $${paramIndex++}`;
       params.push(statusFilter);
+    }
+    if (phone) {
+      query += ` AND u.phone ILIKE $${paramIndex++}`;
+      params.push(`%${String(phone).trim()}%`);
+    }
+    if (email) {
+      query += ` AND u.email ILIKE $${paramIndex++}`;
+      params.push(`%${String(email).trim()}%`);
+    }
+    if (search && String(search).trim()) {
+      const term = `%${String(search).trim()}%`;
+      query += ` AND (u.phone ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex + 1})`;
+      params.push(term, term);
+      paramIndex += 2;
     }
     if (cursor) {
       query += ` AND u.created_at < (SELECT created_at FROM users WHERE id = $${paramIndex++})`;
