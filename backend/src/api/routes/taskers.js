@@ -9,12 +9,13 @@ import { v4 as uuidv4 } from 'uuid';
 const router = express.Router();
 
 /**
- * GET /api/v1/taskers/list?category=cleaning
+ * GET /api/v1/taskers/list?category=cleaning&lat=30.0&lng=31.2
  * List taskers by category (public discovery for /services). Optional auth.
+ * Orders by rating first, then distance if location provided.
  */
 router.get('/list', optionalAuth, async (req, res, next) => {
   try {
-    const { category } = req.query;
+    const { category, lat, lng } = req.query;
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
 
     if (!category || typeof category !== 'string') {
@@ -43,18 +44,57 @@ router.get('/list', optionalAuth, async (req, res, next) => {
       completedResult.rows.map((r) => [r.tasker_id, r.completed_count])
     );
 
-    const taskersResult = await pool.query(
-      `SELECT u.id AS user_id, u.full_name,
-              tp.rating_avg, tp.rating_count, tp.status AS tasker_status
-       FROM users u
-       JOIN tasker_profiles tp ON tp.user_id = u.id
-       JOIN tasker_categories tc ON tc.tasker_id = u.id AND LOWER(TRIM(tc.category)) = $1
-       WHERE u.role = 'tasker'
-         AND tp.status IN ('verified', 'active')
-       ORDER BY tp.rating_avg DESC NULLS LAST, tp.rating_count DESC
-       LIMIT $2`,
-      [slug, limit]
-    );
+    const hasCoords = typeof lat === 'string' && typeof lng === 'string' && 
+                      !Number.isNaN(parseFloat(lat)) && !Number.isNaN(parseFloat(lng));
+    const clientLat = hasCoords ? parseFloat(lat) : null;
+    const clientLng = hasCoords ? parseFloat(lng) : null;
+
+    let query, params;
+    if (hasCoords && clientLat !== null && clientLng !== null) {
+      // Include distance calculation when location is provided
+      query = `
+        SELECT u.id AS user_id, u.full_name, u.profile_picture_url,
+                tp.rating_avg, tp.rating_count, tp.status AS tasker_status,
+                tsa.center_lat AS tasker_lat, tsa.center_lng AS tasker_lng,
+                (6371 * acos(
+                  LEAST(1.0, cos(radians($2)) * cos(radians(tsa.center_lat)) *
+                    cos(radians(tsa.center_lng) - radians($3)) +
+                    sin(radians($2)) * sin(radians(tsa.center_lat)))
+                )) AS distance_km
+        FROM users u
+        JOIN tasker_profiles tp ON tp.user_id = u.id
+        JOIN tasker_categories tc ON tc.tasker_id = u.id AND LOWER(TRIM(tc.category)) = $1
+        LEFT JOIN tasker_service_areas tsa ON tsa.tasker_id = u.id
+        WHERE u.role = 'tasker'
+          AND tp.status IN ('verified', 'active')
+        ORDER BY 
+          tp.rating_avg DESC NULLS LAST,
+          tp.rating_count DESC,
+          CASE WHEN tsa.center_lat IS NOT NULL AND tsa.center_lng IS NOT NULL 
+            THEN (6371 * acos(
+              LEAST(1.0, cos(radians($2)) * cos(radians(tsa.center_lat)) *
+                cos(radians(tsa.center_lng) - radians($3)) +
+                sin(radians($2)) * sin(radians(tsa.center_lat)))
+            )) 
+            ELSE NULL END ASC NULLS LAST
+        LIMIT $4`;
+      params = [slug, clientLat, clientLng, limit];
+    } else {
+      // No location provided, order by rating only
+      query = `
+        SELECT u.id AS user_id, u.full_name, u.profile_picture_url,
+                tp.rating_avg, tp.rating_count, tp.status AS tasker_status
+        FROM users u
+        JOIN tasker_profiles tp ON tp.user_id = u.id
+        JOIN tasker_categories tc ON tc.tasker_id = u.id AND LOWER(TRIM(tc.category)) = $1
+        WHERE u.role = 'tasker'
+          AND tp.status IN ('verified', 'active')
+        ORDER BY tp.rating_avg DESC NULLS LAST, tp.rating_count DESC
+        LIMIT $2`;
+      params = [slug, limit];
+    }
+
+    const taskersResult = await pool.query(query, params);
 
     const items = taskersResult.rows.map((row) => ({
       id: row.user_id,
@@ -65,8 +105,10 @@ router.get('/list', optionalAuth, async (req, res, next) => {
       reviews: parseInt(row.rating_count, 10) || 0,
       completedTasks: completedMap[row.user_id] || 0,
       hourlyRate: null,
-      image: null,
-      distance: null
+      image: row.profile_picture_url || null,
+      profile_picture_url: row.profile_picture_url || null,
+      distance_km: row.distance_km != null ? parseFloat(row.distance_km.toFixed(2)) : null,
+      distance: row.distance_km != null ? parseFloat(row.distance_km.toFixed(2)) : null
     }));
 
     res.json({ items });
@@ -109,7 +151,7 @@ router.get('/available-by-location', async (req, res, next) => {
     const clientLng = hasCoords ? lng : 31.2357;
 
     const taskersResult = await pool.query(
-      `SELECT u.id AS user_id, u.full_name,
+      `SELECT u.id AS user_id, u.full_name, u.profile_picture_url,
               tp.rating_avg, tp.rating_count, tp.status AS tasker_status,
               tsa.center_lat AS tasker_lat, tsa.center_lng AS tasker_lng,
               (6371 * acos(
@@ -124,14 +166,14 @@ router.get('/available-by-location', async (req, res, next) => {
        WHERE u.role = 'tasker'
          AND tp.status IN ('verified', 'active')
        ORDER BY
+         tp.rating_avg DESC NULLS LAST,
+         tp.rating_count DESC,
          CASE WHEN tsa.center_lat IS NOT NULL AND tsa.center_lng IS NOT NULL THEN 0 ELSE 1 END,
          (6371 * acos(
            LEAST(1.0, cos(radians($2)) * cos(radians(tsa.center_lat)) *
              cos(radians(tsa.center_lng) - radians($3)) +
              sin(radians($2)) * sin(radians(tsa.center_lat)))
-         )) ASC NULLS LAST,
-         tp.rating_avg DESC NULLS LAST,
-         tp.rating_count DESC
+         )) ASC NULLS LAST
        LIMIT $4`,
       [slug, clientLat, clientLng, limit]
     );
@@ -144,7 +186,10 @@ router.get('/available-by-location', async (req, res, next) => {
       rating: parseFloat(row.rating_avg) || 0,
       reviews: parseInt(row.rating_count, 10) || 0,
       completedTasks: completedMap[row.user_id] || 0,
+      image: row.profile_picture_url || null,
+      profile_picture_url: row.profile_picture_url || null,
       distance_km: row.distance_km != null ? parseFloat(row.distance_km.toFixed(2)) : null,
+      distance: row.distance_km != null ? parseFloat(row.distance_km.toFixed(2)) : null,
     }));
 
     res.json({ items });

@@ -50,17 +50,39 @@ router.get('/', optionalAuth, async (req, res, next) => {
 /**
  * GET /api/v1/categories/:category_id/pricing
  * Get pricing bands for category
+ * category_id can be either a UUID or a category code (e.g., 'cleaning', 'mounting')
  */
 router.get('/:category_id/pricing', optionalAuth, async (req, res, next) => {
   try {
     const { category_id } = req.params;
     const { city } = req.query;
 
+    // First, try to find the category by code or id
+    // Check if category_id looks like a UUID (contains hyphens) or is a code
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(category_id);
+    const categoryResult = await pool.query(
+      isUUID 
+        ? `SELECT id FROM task_categories WHERE id = $1 LIMIT 1`
+        : `SELECT id FROM task_categories WHERE code = $1 LIMIT 1`,
+      [category_id]
+    );
+
+    if (categoryResult.rows.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: 'CATEGORY_NOT_FOUND',
+          message: 'Category not found'
+        }
+      });
+    }
+
+    const actualCategoryId = categoryResult.rows[0].id;
+
     let query = `
       SELECT * FROM pricing_bands
       WHERE category_id = $1 AND active = true
     `;
-    const params = [category_id];
+    const params = [actualCategoryId];
 
     if (city) {
       query += ` AND (city = $2 OR city IS NULL)`;
@@ -89,10 +111,32 @@ router.get('/:category_id/pricing', optionalAuth, async (req, res, next) => {
 /**
  * POST /api/v1/pricing/estimate
  * Estimate task price
+ * category_id can be either a UUID or a category code (e.g., 'cleaning', 'mounting')
  */
 router.post('/estimate', optionalAuth, async (req, res, next) => {
   try {
     const { category_id, city, estimated_minutes, pricing_model } = req.body;
+
+    // First, try to find the category by code or id
+    // Check if category_id looks like a UUID (contains hyphens) or is a code
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(category_id);
+    const categoryResult = await pool.query(
+      isUUID 
+        ? `SELECT id FROM task_categories WHERE id = $1 LIMIT 1`
+        : `SELECT id FROM task_categories WHERE code = $1 LIMIT 1`,
+      [category_id]
+    );
+
+    if (categoryResult.rows.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: 'CATEGORY_NOT_FOUND',
+          message: 'Category not found'
+        }
+      });
+    }
+
+    const actualCategoryId = categoryResult.rows[0].id;
 
     // Get pricing band
     const bandResult = await pool.query(
@@ -101,7 +145,7 @@ router.post('/estimate', optionalAuth, async (req, res, next) => {
        AND (city = $2 OR city IS NULL)
        ORDER BY city DESC NULLS LAST
        LIMIT 1`,
-      [category_id, city]
+      [actualCategoryId, city]
     );
 
     if (bandResult.rows.length === 0) {
