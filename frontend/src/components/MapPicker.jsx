@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getGeoapifyTileUrl, searchAddresses, EGYPT_BOUNDS } from '@/services/geoapify';
 
 // Fix for default marker icons in React
 delete L.Icon.Default.prototype._getIconUrl;
@@ -15,7 +16,7 @@ L.Icon.Default.mergeOptions({
 // Component to handle map click events and update view
 function MapClickHandler({ onLocationSelect, latitude, longitude }) {
   const map = useMap();
-  
+
   useMapEvents({
     click: (e) => {
       onLocationSelect(e.latlng.lat, e.latlng.lng);
@@ -31,25 +32,6 @@ function MapClickHandler({ onLocationSelect, latitude, longitude }) {
   return null;
 }
 
-// Geocoding function using Nominatim (OpenStreetMap)
-async function geocodeAddress(query) {
-  try {
-    // Focus on Cairo, Egypt by default - expanded viewbox to cover Greater Cairo
-    // viewbox format: min_lon,min_lat,max_lon,max_lat
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=eg&bounded=1&viewbox=31.0,29.8,31.5,30.3&addressdetails=1`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Khidma Platform'
-      }
-    });
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Geocoding error:', error);
-    return [];
-  }
-}
-
 function MapPicker({ latitude, longitude, onLocationSelect, center }) {
   const { t } = useTranslation();
   const [position, setPosition] = useState(
@@ -60,12 +42,43 @@ function MapPicker({ latitude, longitude, onLocationSelect, center }) {
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const searchContainerRef = useRef(null);
+  const debounceRef = useRef(null);
 
   useEffect(() => {
     if (latitude && longitude) {
       setPosition([latitude, longitude]);
     }
   }, [latitude, longitude]);
+
+  // Debounced search-as-you-type (min 2 chars)
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchAddresses(q, {
+          lat: position[0],
+          lon: position[1],
+          radius: 50000,
+          limit: 6,
+        });
+        setSearchResults(results);
+        setShowResults(true);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        debounceRef.current = null;
+      }
+    }, 350);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchQuery, position[0], position[1]]);
 
   // Close search results when clicking outside
   useEffect(() => {
@@ -96,9 +109,13 @@ function MapPicker({ latitude, longitude, onLocationSelect, center }) {
 
     setIsSearching(true);
     setShowResults(true);
-    
+
     try {
-      const results = await geocodeAddress(searchQuery);
+      const results = await searchAddresses(searchQuery, {
+        lat: position[0],
+        lon: position[1],
+        radius: 50000,
+      });
       setSearchResults(results);
     } catch (error) {
       console.error('Search error:', error);
@@ -109,11 +126,11 @@ function MapPicker({ latitude, longitude, onLocationSelect, center }) {
   };
 
   const handleSelectResult = (result) => {
-    const lat = parseFloat(result.lat);
-    const lng = parseFloat(result.lon);
+    const lat = result.lat != null ? parseFloat(result.lat) : position[0];
+    const lng = result.lon != null ? parseFloat(result.lon) : position[1];
     setPosition([lat, lng]);
     onLocationSelect(lat, lng);
-    setSearchQuery(result.display_name);
+    setSearchQuery(result.display_name || result.formatted || '');
     setShowResults(false);
   };
 
@@ -124,7 +141,7 @@ function MapPicker({ latitude, longitude, onLocationSelect, center }) {
           <input
             type="text"
             className="map-search-input"
-            placeholder={t('profile.mapSearchPlaceholder', 'Search for an address or location in Cairo...')}
+            placeholder={t('profile.mapSearchPlaceholder', 'Search for an address in Egypt...')}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -157,12 +174,12 @@ function MapPicker({ latitude, longitude, onLocationSelect, center }) {
           <div className="map-search-results">
             {searchResults.map((result, index) => (
               <div
-                key={index}
+                key={result.place_id || index}
                 className="map-search-result-item"
                 onClick={() => handleSelectResult(result)}
               >
-                <div className="result-name">{result.display_name}</div>
-                <div className="result-type">{result.type}</div>
+                <div className="result-name">{result.display_name || result.formatted}</div>
+                {result.result_type && <div className="result-type">{result.result_type}</div>}
               </div>
             ))}
           </div>
@@ -179,10 +196,13 @@ function MapPicker({ latitude, longitude, onLocationSelect, center }) {
         zoom={13}
         style={{ height: '400px', width: '100%', zIndex: 0 }}
         scrollWheelZoom={true}
+        maxBounds={L.latLngBounds(EGYPT_BOUNDS[0], EGYPT_BOUNDS[1])}
+        maxBoundsViscosity={1}
+        minZoom={6}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.geoapify.com/">Geoapify</a>'
+          url={getGeoapifyTileUrl('osm-bright')}
         />
         <MapClickHandler 
           onLocationSelect={handleLocationSelect} 
@@ -194,7 +214,7 @@ function MapPicker({ latitude, longitude, onLocationSelect, center }) {
         )}
       </MapContainer>
       <div className="map-instructions">
-        <p>{t('profile.mapInstructions', 'Search for an address or click on the map to select your location')}</p>
+        <p>{t('profile.mapInstructions', 'Search for an address in Egypt or click on the map to select your location')}</p>
         {latitude && longitude && (
           <p className="coordinates">
             {t('profile.coordinates', 'Coordinates')}: {latitude.toFixed(6)}, {longitude.toFixed(6)}

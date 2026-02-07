@@ -38,6 +38,7 @@ khidma/
 │   ├── provider/        # Provider mobile app
 │   └── admin/           # Admin mobile app (optional)
 ├── design/              # Technical design documents
+│   └── negotiation_process_design.md  # Task–tasker negotiation (multi-tasker, Q&A, quotations, disclaimers)
 ├── specifications/      # Business, financial, market, and regulatory specifications
 │   ├── business/       # Business specifications & pitch deck
 │   ├── financial/       # Financial models & projections

@@ -21,7 +21,8 @@ const MIGRATIONS = [
   '012_user_account_status_and_support_tickets.sql',
   '013_support_tickets_extended.sql',
   '014_customer_service_role.sql',
-  '015_tasker_verification_documents.sql'
+  '015_tasker_verification_documents.sql',
+  '016_negotiation_video_and_bid_messages.sql'
 ];
 
 async function migrate() {

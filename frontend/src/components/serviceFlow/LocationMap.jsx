@@ -1,27 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { MapPin, Navigation, Search, Loader2 } from 'lucide-react';
+import { reverseGeocodeToAddress, searchAddress, searchAddresses, getGeoapifyStaticMapUrl } from '@/services/geoapify';
 
 const defaultCenter = { lat: 30.0444, lng: 31.2357 };
-
-const reverseGeocode = async (lat, lng) => {
-  try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
-    );
-    const data = await response.json();
-    return data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  } catch {
-    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  }
-};
 
 const LocationMap = ({ location, onLocationChange, i18n }) => {
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [locationType, setLocationType] = useState('map');
+  const autocompleteRef = useRef(null);
+  const debounceRef = useRef(null);
   const isAr = i18n?.language === 'ar';
+
+  // Autocomplete: debounced search-as-you-type (Egypt only via geoapify)
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setShowAutocomplete(false);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchAddresses(q, { limit: 6 });
+        setSearchResults(results);
+        setShowAutocomplete(true);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        debounceRef.current = null;
+      }
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(e.target)) {
+        setShowAutocomplete(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const getCurrentLocation = () => {
     setIsGettingLocation(true);
@@ -31,7 +59,7 @@ const LocationMap = ({ location, onLocationChange, i18n }) => {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords;
-          const address = await reverseGeocode(latitude, longitude);
+          const address = await reverseGeocodeToAddress(latitude, longitude);
           onLocationChange({
             lat: latitude,
             lng: longitude,
@@ -55,18 +83,14 @@ const LocationMap = ({ location, onLocationChange, i18n }) => {
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setIsSearching(true);
+    setShowAutocomplete(false);
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
-      );
-      const data = await response.json();
-
-      if (data.length > 0) {
-        const { lat, lon, display_name } = data[0];
+      const result = await searchAddress(searchQuery);
+      if (result && result.lat != null && result.lon != null) {
         onLocationChange({
-          lat: parseFloat(lat),
-          lng: parseFloat(lon),
-          address: display_name,
+          lat: result.lat,
+          lng: result.lon,
+          address: result.display_name || result.formatted || `${result.lat}, ${result.lon}`,
           type: 'manual',
         });
         setLocationType('search');
@@ -75,16 +99,30 @@ const LocationMap = ({ location, onLocationChange, i18n }) => {
       }
     } catch (err) {
       console.error('Search error:', err);
+      alert(isAr ? 'خطأ في البحث. حاول مرة أخرى.' : 'Search failed. Please try again.');
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const handleSelectSuggestion = (result) => {
+    if (result.lat == null || result.lon == null) return;
+    setSearchQuery(result.display_name || result.formatted || '');
+    setShowAutocomplete(false);
+    onLocationChange({
+      lat: result.lat,
+      lng: result.lon,
+      address: result.display_name || result.formatted || `${result.lat}, ${result.lon}`,
+      type: 'manual',
+    });
+    setLocationType('search');
   };
 
   const handleMapClick = async () => {
     const lat = defaultCenter.lat + (Math.random() - 0.5) * 0.1;
     const lng = defaultCenter.lng + (Math.random() - 0.5) * 0.1;
     setLocationType('map');
-    const address = await reverseGeocode(lat, lng);
+    const address = await reverseGeocodeToAddress(lat, lng);
     onLocationChange({
       lat,
       lng,
@@ -140,15 +178,22 @@ const LocationMap = ({ location, onLocationChange, i18n }) => {
         </button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+      <div className="relative" ref={autocompleteRef}>
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none z-10" />
         <input
           type="text"
-          placeholder={isAr ? 'ابحث عن موقع...' : 'Search for a location...'}
+          placeholder={isAr ? 'ابحث عن عنوان في مصر...' : 'Search for an address in Egypt...'}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+          onFocus={() => searchResults.length > 0 && setShowAutocomplete(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleSearch();
+            }
+          }}
           className="input-field-flow pl-12 pr-20"
+          autoComplete="off"
         />
         <button
           type="button"
@@ -158,6 +203,25 @@ const LocationMap = ({ location, onLocationChange, i18n }) => {
         >
           {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : (isAr ? 'بحث' : 'Search')}
         </button>
+        {showAutocomplete && searchResults.length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg z-20 max-h-56 overflow-y-auto">
+            {searchResults.map((r, i) => (
+              <button
+                key={r.place_id || i}
+                type="button"
+                onClick={() => handleSelectSuggestion(r)}
+                className="w-full px-4 py-3 text-left text-sm hover:bg-accent border-b border-border last:border-b-0 first:rounded-t-xl last:rounded-b-xl transition-colors"
+              >
+                <span className="text-foreground line-clamp-2">{r.display_name || r.formatted}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {showAutocomplete && searchQuery.trim().length >= 2 && searchResults.length === 0 && !isSearching && (
+          <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg z-20 px-4 py-3 text-sm text-muted-foreground">
+            {isAr ? 'لا توجد نتائج في مصر' : 'No results in Egypt'}
+          </div>
+        )}
       </div>
 
       <div
@@ -165,7 +229,14 @@ const LocationMap = ({ location, onLocationChange, i18n }) => {
         onClick={handleMapClick}
       >
         <img
-          src={`https://staticmap.openstreetmap.de/staticmap.php?center=${mapCenter.lat},${mapCenter.lng}&zoom=14&size=800x400&maptype=mapnik${location ? `&markers=${location.lat},${location.lng},red-pushpin` : ''}`}
+          src={getGeoapifyStaticMapUrl({
+            lat: mapCenter.lat,
+            lng: mapCenter.lng,
+            zoom: 14,
+            width: 800,
+            height: 400,
+            marker: !!location,
+          })}
           alt="Map"
           className="w-full h-full object-cover"
           onError={(e) => {

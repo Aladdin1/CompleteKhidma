@@ -776,6 +776,21 @@ router.post('/:task_id/request-quote', authenticate, requireRole('client'), asyn
       });
     }
 
+    const MAX_TASKERS_PER_TASK = 10;
+    const countResult = await pool.query(
+      `SELECT COUNT(*) AS c FROM task_bids WHERE task_id = $1 AND status IN ('requested', 'pending', 'accepted')`,
+      [task_id]
+    );
+    const currentCount = parseInt(countResult.rows[0]?.c ?? 0, 10);
+    if (currentCount >= MAX_TASKERS_PER_TASK) {
+      return res.status(400).json({
+        error: {
+          code: 'MAX_TASKERS_REACHED',
+          message: `You can request quotes from at most ${MAX_TASKERS_PER_TASK} taskers per task.`
+        }
+      });
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -804,6 +819,27 @@ router.post('/:task_id/request-quote', authenticate, requireRole('client'), asyn
       );
       const bidId = ins.rows[0]?.id;
       await client.query('COMMIT');
+
+      // Notify tasker that client requested a quote (negotiation design)
+      const taskInfo = await pool.query(
+        'SELECT category, subcategory, description FROM tasks WHERE id = $1',
+        [task_id]
+      );
+      const taskRow = taskInfo.rows[0];
+      const taskSummary = taskRow?.description?.slice(0, 80) || taskRow?.category || 'Task';
+      await pool.query(
+        `INSERT INTO notifications (id, user_id, kind, title, body, data)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          uuidv4(),
+          tasker_id,
+          'quote_requested',
+          'New quote request',
+          taskSummary,
+          JSON.stringify({ task_id, bid_id: bidId, client_id: userId }),
+        ]
+      );
+
       res.status(201).json({ bid_id: bidId, status: 'requested', message: 'Quote requested. Tasker will be notified to propose their cost.' });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});

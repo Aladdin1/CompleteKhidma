@@ -161,7 +161,7 @@ router.post('/:conversation_id/messages', authenticate, idempotency, async (req,
     const { conversation_id } = req.params;
     const userId = req.user.id;
     const { kind, text, media_url } = z.object({
-      kind: z.enum(['text', 'voice', 'image']),
+      kind: z.enum(['text', 'voice', 'image', 'video']),
       text: z.string().optional(),
       media_url: z.string().url().optional()
     }).parse(req.body);
@@ -194,7 +194,7 @@ router.post('/:conversation_id/messages', authenticate, idempotency, async (req,
       });
     }
 
-    if ((kind === 'voice' || kind === 'image') && !media_url) {
+    if ((kind === 'voice' || kind === 'image' || kind === 'video') && !media_url) {
       return res.status(400).json({
         error: {
           code: 'VALIDATION_ERROR',
@@ -245,11 +245,13 @@ router.post('/:conversation_id/messages', authenticate, idempotency, async (req,
     // Create notification for recipient
     if (recipientId) {
       const notificationId = uuidv4();
-      const messagePreview = kind === 'text' 
+      const messagePreview = kind === 'text'
         ? (text?.slice(0, 100) || '')
-        : kind === 'voice' 
+        : kind === 'voice'
           ? 'رسالة صوتية'
-          : 'صورة';
+          : kind === 'video'
+            ? 'فيديو'
+            : 'صورة';
       
       await pool.query(
         `INSERT INTO notifications (id, user_id, kind, title, body, data)

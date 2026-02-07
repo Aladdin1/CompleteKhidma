@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, ArrowLeft, CheckCircle, Upload } from 'lucide-react';
@@ -82,27 +82,37 @@ function BecomeTaskerSignupPage() {
     }
   }, [user, navigate, step]);
 
-  // Pre-fill form from user when authenticated, fetch fresh data on step 2
+  // Pre-fill form when entering step 2 — fetch once (ref prevents infinite loop from updateUser)
+  const step2FetchedRef = useRef(false);
   useEffect(() => {
-    if (isAuthenticated && user && step === 2) {
-      userAPI.getMe()
-        .then((me) => {
-          setFormData((prev) => ({
-            ...prev,
-            full_name: me.full_name || prev.full_name,
-            email: me.email || prev.email,
-          }));
-          updateUser(me);
-        })
-        .catch(() => {});
-    } else if (isAuthenticated && user) {
-      setFormData((prev) => ({
-        ...prev,
-        full_name: user.full_name || prev.full_name,
-        email: user.email || prev.email,
-      }));
+    if (step !== 2) {
+      step2FetchedRef.current = false;
+      return;
     }
-  }, [isAuthenticated, user, step]);
+    if (!isAuthenticated) return;
+    if (step2FetchedRef.current) return;
+    step2FetchedRef.current = true;
+    userAPI.getMe()
+      .then((me) => {
+        setFormData((prev) => ({
+          ...prev,
+          full_name: me.full_name || prev.full_name,
+          email: me.email || prev.email,
+        }));
+        updateUser(me);
+      })
+      .catch(() => { step2FetchedRef.current = false; });
+  }, [isAuthenticated, step, updateUser]);
+  // Initial pre-fill from user when we have it (e.g. after OAuth) before getMe completes
+  useEffect(() => {
+    if (!isAuthenticated || !user || step !== 2) return;
+    setFormData((prev) => ({
+      ...prev,
+      full_name: user.full_name || prev.full_name,
+      email: user.email || prev.email,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when stepping to 2, not when user updates from getMe
+  }, [isAuthenticated, step]);
 
   const handleRequestOTP = async (e) => {
     e.preventDefault();
@@ -395,7 +405,7 @@ function BecomeTaskerSignupPage() {
     <div className="min-h-screen flex flex-col">
       <Navbar />
 
-      <div className="flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {/* Hero - same style as LandingPage */}
         <section className="bg-gradient-to-br from-teal-50 to-blue-50 py-12">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -431,8 +441,8 @@ function BecomeTaskerSignupPage() {
               ))}
             </div>
 
-            <Card className="bg-white shadow-xl rounded-2xl border-0 overflow-hidden">
-              <div className="p-8 sm:p-10">
+            <Card className="bg-white shadow-xl rounded-2xl border-0 overflow-visible">
+              <div className="p-8 sm:p-10 overflow-visible">
                 {error && (
                   <div className="mb-6 p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20">
                     {error}

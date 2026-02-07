@@ -39,6 +39,7 @@ const TASKER_DATA = [
   { name: 'Nader Gamal', phone: '+201012345018', rating: 4.8, reviews: 121, lat: 30.0844, lng: 31.2757, categories: ['plumbing', 'electrical', 'mounting'] },
   { name: 'Fady Emad', phone: '+201012345019', rating: 5.0, reviews: 198, lat: 30.0044, lng: 31.1957, categories: ['moving', 'cleaning', 'delivery'] },
   { name: 'Adel Saad', phone: '+201012345020', rating: 4.7, reviews: 109, lat: 30.0944, lng: 31.2857, categories: ['handyman', 'painting', 'assembly'] },
+  { name: 'Alaa Eldin - Electrician', phone: '+201012345021', rating: 4.9, reviews: 156, lat: 30.0444, lng: 31.2357, categories: ['electrical', 'handyman'] },
 ];
 
 // Demo profile pictures using placeholder services
@@ -71,7 +72,7 @@ const CAIRO_LNG = 31.2357;
 async function seedTaskers() {
   const client = await pool.connect();
   try {
-    console.log('🌱 Seeding 20 taskers with real names and profile pictures...\n');
+    console.log('🌱 Seeding 21 taskers with real names and profile pictures...\n');
 
     for (let i = 0; i < TASKER_DATA.length; i++) {
       const tasker = TASKER_DATA[i];
@@ -137,7 +138,7 @@ async function seedTaskers() {
       console.log(`  ✓ ${tasker.name} (${tasker.phone}) – Rating: ${tasker.rating} ⭐ (${tasker.reviews} reviews) – ${tasker.categories.join(', ')}`);
     }
 
-    console.log('\n✅ Done! 20 taskers created with real names and profile pictures.');
+    console.log('\n✅ Done! 21 taskers created with real names and profile pictures.');
   } catch (err) {
     console.error('❌ Seed error:', err);
     throw err;
