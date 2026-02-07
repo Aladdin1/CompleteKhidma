@@ -873,7 +873,8 @@ router.get('/taskers/:user_id', async (req, res, next) => {
 
     const profileResult = await pool.query(
       `SELECT tp.*, u.phone, u.email, u.full_name, u.locale,
-              uv.phone_verified, uv.verification_status, uv.national_id_last4, uv.verified_at
+              uv.phone_verified, uv.verification_status, uv.national_id_last4, uv.verified_at,
+              uv.id_photo_front_id, uv.id_photo_back_id, uv.criminal_record_id
        FROM tasker_profiles tp
        JOIN users u ON u.id = tp.user_id
        LEFT JOIN user_verifications uv ON uv.user_id = tp.user_id
@@ -888,15 +889,30 @@ router.get('/taskers/:user_id', async (req, res, next) => {
     }
 
     const row = profileResult.rows[0];
+    const mediaIds = [
+      row.id_photo_front_id,
+      row.id_photo_back_id,
+      row.criminal_record_id
+    ].filter(Boolean);
 
-    const [categoriesResult, skillsResult, areaResult] = await Promise.all([
+    const [categoriesResult, skillsResult, areaResult, mediaResult] = await Promise.all([
       pool.query('SELECT category FROM tasker_categories WHERE tasker_id = $1', [user_id]),
       pool.query('SELECT skill FROM tasker_skills WHERE tasker_id = $1', [user_id]),
       pool.query(
         'SELECT center_lat, center_lng, radius_km FROM tasker_service_areas WHERE tasker_id = $1',
         [user_id]
-      )
+      ),
+      mediaIds.length > 0
+        ? pool.query(
+            'SELECT id, storage_url, mime_type, kind FROM media_files WHERE id = ANY($1)',
+            [mediaIds]
+          )
+        : Promise.resolve({ rows: [] })
     ]);
+
+    const mediaById = Object.fromEntries(
+      (mediaResult.rows || []).map((m) => [m.id, { url: m.storage_url, mime_type: m.mime_type, kind: m.kind }])
+    );
 
     const profile = {
       user_id: row.user_id,
@@ -924,7 +940,12 @@ router.get('/taskers/:user_id', async (req, res, next) => {
               },
               radius_km: parseFloat(areaResult.rows[0].radius_km)
             }
-          : null
+          : null,
+      verification_documents: {
+        id_photo_front: row.id_photo_front_id ? mediaById[row.id_photo_front_id] || null : null,
+        id_photo_back: row.id_photo_back_id ? mediaById[row.id_photo_back_id] || null : null,
+        criminal_record: row.criminal_record_id ? mediaById[row.criminal_record_id] || null : null
+      }
     };
 
     res.json(profile);

@@ -2,6 +2,26 @@ import axios from 'axios';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/?$/, '/');
 
+/**
+ * Resolve media URL for display (img src, links). Handles cross-origin when backend is on different host.
+ * @param {string} storageUrl - Path like /media/xxx.jpg from backend
+ * @returns {string} Full URL for the media resource
+ */
+export function getMediaUrl(storageUrl) {
+  if (!storageUrl) return '';
+  if (storageUrl.startsWith('http://') || storageUrl.startsWith('https://')) return storageUrl;
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+  if (apiBase.startsWith('http')) {
+    try {
+      const u = new URL(apiBase);
+      return `${u.origin}${storageUrl.startsWith('/') ? '' : '/'}${storageUrl}`;
+    } catch {
+      return storageUrl;
+    }
+  }
+  return storageUrl;
+}
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,

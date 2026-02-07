@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { adminAPI } from '../services/api';
+import { adminAPI, getMediaUrl } from '../services/api';
 import useAuthStore from '../store/authStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -193,27 +193,106 @@ function AdminPendingTaskersPage() {
 
       {/* Detail dialog */}
       <Dialog open={!!detailUserId} onOpenChange={(open) => !open && setDetailUserId(null)}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Tasker detail</DialogTitle>
-            <DialogDescription>Review profile before verify/reject.</DialogDescription>
+            <DialogDescription>Review profile and uploaded documents before verify/reject.</DialogDescription>
           </DialogHeader>
           {detailLoading ? (
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
             </div>
           ) : detail ? (
-            <div className="space-y-3 text-sm">
-              <p><strong>Name:</strong> {detail.full_name || '—'}</p>
-              <p><strong>Phone:</strong> {detail.phone || '—'}</p>
-              <p><strong>Email:</strong> {detail.email || '—'}</p>
-              <p><strong>Bio:</strong> {detail.bio || '—'}</p>
-              <p><strong>National ID last 4:</strong> {detail.national_id_last4 ? `••••${detail.national_id_last4}` : '—'}</p>
-              <p><strong>Phone verified:</strong> {detail.phone_verified ? 'Yes' : 'No'}</p>
-              <p><strong>Categories:</strong> {detail.categories?.length ? detail.categories.join(', ') : '—'}</p>
-              <p><strong>Skills:</strong> {detail.skills?.length ? detail.skills.join(', ') : '—'}</p>
-              {detail.service_area && (
-                <p><strong>Service area:</strong> {detail.service_area.radius_km} km around ({detail.service_area.center?.lat}, {detail.service_area.center?.lng})</p>
+            <div className="space-y-4 text-sm">
+              <div className="grid gap-2">
+                <h4 className="font-medium text-slate-800">Personal information</h4>
+                <p><strong>Name:</strong> {detail.full_name || '—'}</p>
+                <p><strong>Phone:</strong> {detail.phone || '—'}</p>
+                <p><strong>Email:</strong> {detail.email || '—'}</p>
+                <p><strong>National ID last 4:</strong> {detail.national_id_last4 ? `••••${detail.national_id_last4}` : '—'}</p>
+                <p><strong>Phone verified:</strong> {detail.phone_verified ? 'Yes' : 'No'}</p>
+              </div>
+              <div className="grid gap-2">
+                <h4 className="font-medium text-slate-800">Profile</h4>
+                <p><strong>Bio:</strong> {detail.bio || '—'}</p>
+                <p><strong>Categories:</strong> {detail.categories?.length ? detail.categories.join(', ') : '—'}</p>
+                <p><strong>Skills:</strong> {detail.skills?.length ? detail.skills.join(', ') : '—'}</p>
+                {detail.service_area && (
+                  <p><strong>Service area:</strong> {detail.service_area.radius_km} km around ({detail.service_area.center?.lat}, {detail.service_area.center?.lng})</p>
+                )}
+              </div>
+              {detail.verification_documents && (detail.verification_documents.id_photo_front || detail.verification_documents.id_photo_back || detail.verification_documents.criminal_record) && (
+                <div className="grid gap-2">
+                  <h4 className="font-medium text-slate-800">Uploaded documents</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {detail.verification_documents.id_photo_front && (() => {
+                      const doc = detail.verification_documents.id_photo_front;
+                      const url = getMediaUrl(doc.url);
+                      return (
+                        <div key="id-front">
+                          <p className="text-xs text-slate-500 mb-1">ID photo (front)</p>
+                          {doc.mime_type?.startsWith('image/') ? (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+                              <img
+                                src={url}
+                                alt="ID front"
+                                className="w-full max-h-40 object-contain rounded border border-slate-200"
+                              />
+                            </a>
+                          ) : (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-teal-600 underline">
+                              View document
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {detail.verification_documents.id_photo_back && (() => {
+                      const doc = detail.verification_documents.id_photo_back;
+                      const url = getMediaUrl(doc.url);
+                      return (
+                        <div key="id-back">
+                          <p className="text-xs text-slate-500 mb-1">ID photo (back)</p>
+                          {doc.mime_type?.startsWith('image/') ? (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+                              <img
+                                src={url}
+                                alt="ID back"
+                                className="w-full max-h-40 object-contain rounded border border-slate-200"
+                              />
+                            </a>
+                          ) : (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-teal-600 underline">
+                              View document
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {detail.verification_documents.criminal_record && (() => {
+                      const doc = detail.verification_documents.criminal_record;
+                      const url = getMediaUrl(doc.url);
+                      return (
+                        <div key="criminal-record">
+                          <p className="text-xs text-slate-500 mb-1">Criminal record</p>
+                          {doc.mime_type?.startsWith('image/') ? (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+                              <img
+                                src={url}
+                                alt="Criminal record"
+                                className="w-full max-h-40 object-contain rounded border border-slate-200"
+                              />
+                            </a>
+                          ) : (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-teal-600 underline">
+                              View document
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
               )}
               <p><strong>Applied at:</strong> {detail.created_at ? new Date(detail.created_at).toLocaleString() : '—'}</p>
               {isAdminOnly && (
