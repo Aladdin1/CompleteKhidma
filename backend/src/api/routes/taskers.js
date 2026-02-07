@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { authenticate, requireRole, optionalAuth } from '../../middleware/auth.js';
+import { authenticate, requireRole, requireVerifiedTasker, optionalAuth } from '../../middleware/auth.js';
 import { idempotency } from '../../middleware/idempotency.js';
 import { pagination, formatPaginatedResponse } from '../../middleware/pagination.js';
 import pool from '../../config/database.js';
@@ -559,7 +559,7 @@ router.patch('/me/profile', authenticate, requireRole('tasker'), async (req, res
  * US-T-082: filter by category, max_distance_km, min_price, max_price, starts_after, starts_before, sort
  * US-T-084: include client_name
  */
-router.get('/me/tasks/available', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
+router.get('/me/tasks/available', authenticate, requireRole('tasker'), requireVerifiedTasker, pagination, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { limit, cursor } = req.pagination;
@@ -774,7 +774,7 @@ router.get('/me/tasks/available', authenticate, requireRole('tasker'), paginatio
  * Tasks that are open for bids (US-C-102). Any matching tasker can submit a quote.
  * Requires tasks.bid_mode = 'open_for_bids'. Tasker must have matching category and be in range.
  */
-router.get('/me/tasks/open-for-bid', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
+router.get('/me/tasks/open-for-bid', authenticate, requireRole('tasker'), requireVerifiedTasker, pagination, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { limit, cursor } = req.pagination;
@@ -856,7 +856,7 @@ router.get('/me/tasks/open-for-bid', authenticate, requireRole('tasker'), pagina
  * Tasks where the client requested a quote from this tasker (task_bids status 'requested').
  * Tasker uses this to see "Client requested a quote — propose your cost" and submit bid.
  */
-router.get('/me/quote-requests', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
+router.get('/me/quote-requests', authenticate, requireRole('tasker'), requireVerifiedTasker, pagination, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { limit, cursor } = req.pagination;
@@ -913,7 +913,7 @@ router.get('/me/quote-requests', authenticate, requireRole('tasker'), pagination
  * - From task_bids with status 'requested' (client requested a quote — invite_only)
  * - From task_candidates (algo-offered)
  */
-router.get('/me/tasks/offered', authenticate, requireRole('tasker'), pagination, async (req, res, next) => {
+router.get('/me/tasks/offered', authenticate, requireRole('tasker'), requireVerifiedTasker, pagination, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { limit, cursor } = req.pagination;
@@ -1181,6 +1181,79 @@ router.post('/me/verification', authenticate, requireRole('tasker'), async (req,
     res.json({
       message: 'Verification info submitted. An admin will review your application.',
       national_id_last4: national_id_last4
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/taskers/me/verification-documents
+ * Submit ID photos (front/back) and criminal record document for verification.
+ */
+router.post('/me/verification-documents', authenticate, requireRole('tasker'), async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { id_photo_front_id, id_photo_back_id, criminal_record_id } = z.object({
+      id_photo_front_id: z.string().uuid().optional(),
+      id_photo_back_id: z.string().uuid().optional(),
+      criminal_record_id: z.string().uuid().optional()
+    }).parse(req.body);
+
+    if (!id_photo_front_id && !id_photo_back_id && !criminal_record_id) {
+      return res.status(400).json({
+        error: { code: 'NO_DOCUMENTS', message: 'At least one document is required' }
+      });
+    }
+
+    // Verify media files exist and belong to user
+    const mediaIds = [id_photo_front_id, id_photo_back_id, criminal_record_id].filter(Boolean);
+    for (const mediaId of mediaIds) {
+      const mediaResult = await pool.query(
+        'SELECT id FROM media_files WHERE id = $1 AND user_id = $2',
+        [mediaId, userId]
+      );
+      if (mediaResult.rows.length === 0) {
+        return res.status(400).json({
+          error: { code: 'INVALID_MEDIA', message: `Media file ${mediaId} not found or not owned by user` }
+        });
+      }
+    }
+
+    // Build update - only set provided fields
+    const updates = [];
+    const params = [];
+    let idx = 1;
+    if (id_photo_front_id) {
+      updates.push(`id_photo_front_id = $${idx++}`);
+      params.push(id_photo_front_id);
+    }
+    if (id_photo_back_id) {
+      updates.push(`id_photo_back_id = $${idx++}`);
+      params.push(id_photo_back_id);
+    }
+    if (criminal_record_id) {
+      updates.push(`criminal_record_id = $${idx++}`);
+      params.push(criminal_record_id);
+    }
+    if (updates.length === 0) return;
+
+    params.push(userId);
+    const userIdParam = idx;
+    await pool.query(
+      `INSERT INTO user_verifications (user_id, phone_verified, updated_at)
+       VALUES ($${userIdParam}, false, now())
+       ON CONFLICT (user_id) DO UPDATE SET
+         ${updates.join(', ')},
+         updated_at = now()`,
+      params
+    );
+
+    res.json({
+      message: 'Verification documents submitted successfully',
+      id_photo_front_id: id_photo_front_id || null,
+      id_photo_back_id: id_photo_back_id || null,
+      criminal_record_id: criminal_record_id || null
     });
   } catch (error) {
     next(error);

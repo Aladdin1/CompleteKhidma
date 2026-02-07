@@ -10,6 +10,7 @@ function MyApplicationsPage() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingVerification, setPendingVerification] = useState(false);
   const [processing, setProcessing] = useState(new Set());
 
   useEffect(() => {
@@ -23,6 +24,8 @@ function MyApplicationsPage() {
       const data = await taskerAPI.getOfferedTasks({ limit: 50 });
       setTasks(data.items || []);
     } catch (err) {
+      const code = err.response?.data?.error?.code;
+      setPendingVerification(code === 'TASKER_NOT_VERIFIED');
       setError(err.response?.data?.error?.message || 'Failed to load offered tasks');
     } finally {
       setLoading(false);
@@ -73,9 +76,31 @@ function MyApplicationsPage() {
         <p>المهام المعروضة عليك</p>
       </div>
 
-      {error && <div className="error">{error}</div>}
+      {error && (
+        <div className="error">
+          {error}
+          {pendingVerification && (
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/tasker/application-status')}
+              style={{
+                marginTop: '0.75rem',
+                padding: '0.5rem 1rem',
+                background: '#0d9488',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              {i18n.language === 'ar' ? 'عرض حالة التقديم' : 'View application status'}
+            </button>
+          )}
+        </div>
+      )}
 
-      {tasks.length === 0 ? (
+      {!error && (tasks.length === 0 ? (
         <div className="empty-state">
           <p>لا توجد عروض حالياً</p>
           <p className="hint">سيتم إرسال عروض المهام إليك بناءً على ملفك الشخصي</p>
@@ -184,7 +209,7 @@ function MyApplicationsPage() {
             );
           })}
         </div>
-      )}
+      ))}
     </div>
   );
 }

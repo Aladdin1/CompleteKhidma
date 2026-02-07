@@ -120,9 +120,6 @@ const Navbar = ({ variant = 'auto' }) => {
                     <Link to="/dashboard/tasker" className={`text-sm ${linkClass}`}>
                       {i18n.language === 'ar' ? 'لوحة المهمات' : 'Dashboard'}
                     </Link>
-                    <Link to="/dashboard/tasker/tasks/available" className={`text-sm ${linkClass}`}>
-                      {i18n.language === 'ar' ? 'المهام المتاحة' : 'Available Tasks'}
-                    </Link>
                     <Link to="/dashboard/tasker/tasks/offered" className={`text-sm ${linkClass}`}>
                       {i18n.language === 'ar' ? 'عروضي' : 'My Offers'}
                     </Link>
@@ -289,9 +286,6 @@ const Navbar = ({ variant = 'auto' }) => {
                   <>
                     <Link to="/dashboard/tasker" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {i18n.language === 'ar' ? 'لوحة المهمات' : 'Dashboard'}
-                    </Link>
-                    <Link to="/dashboard/tasker/tasks/available" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
-                      {i18n.language === 'ar' ? 'المهام المتاحة' : 'Available Tasks'}
                     </Link>
                     <Link to="/dashboard/tasker/tasks/offered" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {i18n.language === 'ar' ? 'عروضي' : 'My Offers'}

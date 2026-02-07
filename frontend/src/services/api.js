@@ -10,12 +10,16 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and fix FormData uploads
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // For FormData, remove Content-Type so browser sets multipart/form-data with boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
     }
     return config;
   },
@@ -126,6 +130,19 @@ export const authAPI = {
   },
 };
 
+// Media API
+export const mediaAPI = {
+  /** Upload a file (image, voice, or document). Returns { id, url, ... } */
+  upload: async (file, kind = 'image') => {
+    const formData = new FormData();
+    formData.append('kind', kind);
+    formData.append('file', file);
+    // Must NOT set Content-Type for FormData - browser sets multipart/form-data with boundary
+    const response = await api.post('/media/upload', formData);
+    return response.data;
+  },
+};
+
 // User API
 export const userAPI = {
   getMe: async () => {
@@ -135,6 +152,14 @@ export const userAPI = {
 
   updateMe: async (data) => {
     const response = await api.patch('/users/me', data);
+    return response.data;
+  },
+
+  /** Check if email is available (excludeUserId = current user when editing) */
+  checkEmail: async (email, excludeUserId = null) => {
+    const params = new URLSearchParams({ email: email.trim() });
+    if (excludeUserId) params.append('exclude_user_id', excludeUserId);
+    const response = await api.get(`/users/check-email?${params}`);
     return response.data;
   },
 
@@ -303,8 +328,22 @@ export const taskerAPI = {
     return response.data;
   },
 
+  /** Apply to become a tasker with profile data */
+  apply: async (data) => {
+    const idempotencyKey = crypto.randomUUID();
+    const response = await api.post('/taskers/apply', data, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
+    return response.data;
+  },
+
   submitVerification: async (national_id_last4) => {
     const response = await api.post('/taskers/me/verification', { national_id_last4 });
+    return response.data;
+  },
+
+  submitVerificationDocuments: async (data) => {
+    const response = await api.post('/taskers/me/verification-documents', data);
     return response.data;
   },
 

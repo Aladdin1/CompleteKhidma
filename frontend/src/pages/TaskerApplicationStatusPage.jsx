@@ -4,8 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { taskerAPI } from '../services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 function TaskerApplicationStatusPage() {
   const { i18n } = useTranslation();
@@ -15,9 +13,6 @@ function TaskerApplicationStatusPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [resubmitLoading, setResubmitLoading] = useState(false);
-  const [verificationLoading, setVerificationLoading] = useState(false);
-  const [nationalIdLast4, setNationalIdLast4] = useState('');
-  const [verificationSubmitted, setVerificationSubmitted] = useState(false);
 
   const isAr = i18n.language?.startsWith('ar');
 
@@ -31,7 +26,6 @@ function TaskerApplicationStatusPage() {
       setError('');
       const data = await taskerAPI.getApplicationStatus();
       setStatus(data);
-      if (data?.national_id_last4) setNationalIdLast4(data.national_id_last4);
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to load application status');
       setStatus({ applied: false });
@@ -52,28 +46,6 @@ function TaskerApplicationStatusPage() {
       setError(err.response?.data?.error?.message || 'Failed to resubmit');
     } finally {
       setResubmitLoading(false);
-    }
-  };
-
-  const handleSubmitVerification = async (e) => {
-    e.preventDefault();
-    const trimmed = nationalIdLast4.replace(/\D/g, '').slice(0, 4);
-    if (trimmed.length !== 4) {
-      setError(isAr ? 'أدخل 4 أرقام من الرقم القومي' : 'Enter 4 digits of national ID');
-      return;
-    }
-    try {
-      setVerificationLoading(true);
-      setError('');
-      setSuccess('');
-      await taskerAPI.submitVerification(trimmed);
-      setVerificationSubmitted(true);
-      setSuccess(isAr ? 'تم إرسال بيانات التحقق للمراجعة' : 'Verification info submitted for review');
-      await loadStatus();
-    } catch (err) {
-      setError(err.response?.data?.error?.message || 'Failed to submit verification');
-    } finally {
-      setVerificationLoading(false);
     }
   };
 
@@ -159,44 +131,6 @@ function TaskerApplicationStatusPage() {
           )}
         </CardContent>
       </Card>
-
-      {status.applied && !isVerified && (
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle>{isAr ? 'التحقق من الهوية (اختياري)' : 'Identity verification (optional)'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-slate-600 text-sm mb-4">
-              {isAr ? 'أدخل آخر 4 أرقام من الرقم القومي لمساعدة المراجع في التحقق من هويتك.' : 'Enter the last 4 digits of your national ID to help reviewers verify your identity.'}
-            </p>
-            {!verificationSubmitted && !status.national_id_last4 ? (
-              <form onSubmit={handleSubmitVerification} className="flex gap-2 flex-wrap items-end">
-                <div className="grid gap-1">
-                  <Label htmlFor="national_id_last4">{isAr ? 'آخر 4 أرقام' : 'Last 4 digits'}</Label>
-                  <Input
-                    id="national_id_last4"
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={4}
-                    placeholder="1234"
-                    value={nationalIdLast4}
-                    onChange={(e) => setNationalIdLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    className="w-24"
-                  />
-                </div>
-                <Button type="submit" disabled={verificationLoading}>
-                  {verificationLoading ? (isAr ? 'جاري الإرسال...' : 'Submitting...') : (isAr ? 'إرسال' : 'Submit')}
-                </Button>
-              </form>
-            ) : (
-              <p className="text-slate-600 text-sm">
-                {isAr ? 'تم إرسال بيانات التحقق.' : 'Verification info submitted.'}
-                {status.national_id_last4 && ` (••••${status.national_id_last4})`}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

@@ -5,19 +5,13 @@ import { Card } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useTranslation } from 'react-i18next';
-import useAuthStore from '@/store/authStore';
 
 const BecomeTaskerPublic = () => {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuthStore();
 
   const handleSignUp = () => {
-    if (isAuthenticated) {
-      navigate('/dashboard/become-tasker');
-    } else {
-      navigate('/login?redirect=/dashboard/become-tasker');
-    }
+    navigate('/become-tasker/signup');
   };
 
   return (

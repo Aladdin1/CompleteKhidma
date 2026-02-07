@@ -15,6 +15,7 @@ function AvailableTasksPage() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingVerification, setPendingVerification] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -29,6 +30,7 @@ function AvailableTasksPage() {
     try {
       setLoading(true);
       setError('');
+      setPendingVerification(false);
       const params = { limit: 20, cursor: cursor || undefined };
       if (categoryFilter) params.category = categoryFilter;
       if (maxDistance) params.max_distance_km = maxDistance;
@@ -48,7 +50,10 @@ function AvailableTasksPage() {
       const code = err.response?.data?.error?.code;
       const msg = err.response?.data?.error?.message || 'Failed to load tasks';
       const role = err.response?.data?.error?.current_role;
-      if (code === 'FORBIDDEN' || code === 'UNAUTHORIZED') {
+      if (code === 'TASKER_NOT_VERIFIED') {
+        setPendingVerification(true);
+        setError(msg);
+      } else if (code === 'FORBIDDEN' || code === 'UNAUTHORIZED') {
         let s = 'ليس لديك صلاحية للوصول.';
         if (role) s += ` دورك: '${role}'.`;
         s += ' سجّل الخروج ثم الدخول مجدداً.';
@@ -88,7 +93,30 @@ function AvailableTasksPage() {
         <p>تصفح المهام المتاحة في منطقتك</p>
       </div>
 
-      {error && <div className="error">{error}</div>}
+      {error && (
+        <div className="error">
+          {error}
+          {pendingVerification && (
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/tasker/application-status')}
+              style={{
+                marginTop: '0.75rem',
+                display: 'block',
+                padding: '0.5rem 1rem',
+                background: '#0d9488',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              {t('tasker.applicationStatus') || 'عرض حالة التقديم'}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="available-filters">
         <button

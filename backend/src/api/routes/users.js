@@ -8,6 +8,38 @@ import crypto from 'crypto';
 const router = express.Router();
 
 /**
+ * GET /api/v1/users/check-email
+ * Check if email is available (for signup/profile edit)
+ * Authenticated: excludes current user's email. Unauthenticated: checks all.
+ */
+router.get('/check-email', async (req, res, next) => {
+  try {
+    const email = String(req.query.email || '').trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({
+        error: { code: 'INVALID_EMAIL', message: 'Email is required' }
+      });
+    }
+    const excludeUserId = req.query.exclude_user_id || null;
+    let result;
+    if (excludeUserId) {
+      result = await pool.query(
+        'SELECT id FROM users WHERE LOWER(email) = $1 AND id != $2',
+        [email, excludeUserId]
+      );
+    } else {
+      result = await pool.query(
+        'SELECT id FROM users WHERE LOWER(email) = $1',
+        [email]
+      );
+    }
+    return res.json({ available: result.rows.length === 0 });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/v1/users/me
  * Get current user
  */
@@ -78,6 +110,22 @@ router.patch('/me', authenticate, async (req, res, next) => {
     }
 
     try {
+      // Check for duplicate email before updating (exclude current user)
+      if (email !== undefined && typeof email === 'string' && email.trim() !== '') {
+        const existing = await pool.query(
+          'SELECT id FROM users WHERE email = $1 AND id != $2',
+          [email.trim(), userId]
+        );
+        if (existing.rows.length > 0) {
+          return res.status(409).json({
+            error: {
+              code: 'EMAIL_TAKEN',
+              message: 'This email is already registered to another account'
+            }
+          });
+        }
+      }
+
       const updates = [];
       const params = [];
       let paramIndex = 1;
@@ -89,7 +137,7 @@ router.patch('/me', authenticate, async (req, res, next) => {
 
       if (email !== undefined) {
         updates.push(`email = $${paramIndex++}`);
-        params.push(email);
+        params.push(typeof email === 'string' && email.trim() ? email.trim() : null);
       }
 
       if (locale !== undefined) {
@@ -112,6 +160,15 @@ router.patch('/me', authenticate, async (req, res, next) => {
 
       return res.json(result.rows[0]);
     } catch (dbError) {
+      // Handle duplicate email (race condition or pre-check missed)
+      if (dbError.code === '23505' && dbError.constraint === 'users_email_key') {
+        return res.status(409).json({
+          error: {
+            code: 'EMAIL_TAKEN',
+            message: 'This email is already registered to another account'
+          }
+        });
+      }
       // Fallback: Update in-memory user store if database is not available
       if (global.userStore) {
         const user = Array.from(global.userStore.values()).find(u => u.id === userId);

@@ -20,7 +20,7 @@ const upload = multer({
     const allowedMimes = {
       image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
       voice: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4'],
-      document: ['application/pdf', 'application/msword']
+      document: ['application/pdf', 'application/msword', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']
     };
 
     const kind = req.body.kind || 'image';

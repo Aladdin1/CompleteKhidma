@@ -223,9 +223,11 @@
   border-color: #3b82f6;
 }
 
-.account-section .disabled-input {
+.account-section .disabled-input,
+.readonly-input {
   background: #f3f4f6;
   cursor: not-allowed;
+  color: #6b7280;
 }
 
 .link-btn {
