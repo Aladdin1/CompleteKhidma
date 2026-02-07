@@ -72,6 +72,14 @@ function RoleBasedRoute({ allowedRoles, children }) {
   return children;
 }
 
+function DashboardIndexRoute() {
+  const { user } = useAuthStore();
+  if (user?.role === 'tasker') {
+    return <Navigate to="/dashboard/tasker" replace />;
+  }
+  return <DashboardPage />;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -122,7 +130,7 @@ function App() {
           }
         >
           {/* Client routes */}
-          <Route index element={<DashboardPage />} />
+          <Route index element={<DashboardIndexRoute />} />
           <Route path="my-tasks" element={<MyTasksPage />} />
           <Route path="tasks/:taskId/find-tasker" element={<FindTaskerPage />} />
           <Route path="tasks/:taskId" element={<TaskDetailPage />} />
