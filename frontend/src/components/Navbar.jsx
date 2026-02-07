@@ -173,9 +173,6 @@ const Navbar = ({ variant = 'auto' }) => {
                     <Link to="/dashboard/profile" className={`text-sm ${linkClass}`}>
                       {t('profile.title')}
                     </Link>
-                    <Link to="/dashboard/become-tasker" className={`text-sm ${linkClass}`}>
-                      {i18n.language === 'ar' ? 'أصبح مهمات' : 'Become a Tasker'}
-                    </Link>
                   </>
                 )}
                 {(!user?.role || (user?.role !== 'tasker' && user?.role !== 'client' && user?.role !== 'admin' && user?.role !== 'ops' && user?.role !== 'customer_service')) && (
@@ -331,9 +328,6 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                     <Link to="/dashboard/profile" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('profile.title')}
-                    </Link>
-                    <Link to="/dashboard/become-tasker" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
-                      {i18n.language === 'ar' ? 'أصبح مهمات' : 'Become a Tasker'}
                     </Link>
                   </>
                 )}
