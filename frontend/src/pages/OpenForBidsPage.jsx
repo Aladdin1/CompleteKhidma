@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { taskerAPI } from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,11 @@ import { MapPin, Calendar } from 'lucide-react';
 
 export default function OpenForBidsPage() {
   const { i18n } = useTranslation();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingVerification, setPendingVerification] = useState(false);
 
   useEffect(() => {
     loadTasks();
@@ -23,6 +25,8 @@ export default function OpenForBidsPage() {
       const data = await taskerAPI.getOpenForBidTasks({ limit: 50 });
       setItems(data.items || []);
     } catch (err) {
+      const code = err.response?.data?.error?.code;
+      setPendingVerification(code === 'TASKER_NOT_VERIFIED');
       setError(err.response?.data?.error?.message || 'Failed to load tasks open for bids');
     } finally {
       setLoading(false);
@@ -51,7 +55,18 @@ export default function OpenForBidsPage() {
       </p>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 text-red-800 p-4 text-sm">{error}</div>
+        <div className="mb-4 rounded-lg bg-red-50 text-red-800 p-4 text-sm">
+          {error}
+          {pendingVerification && (
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/tasker/application-status')}
+              className="mt-3 px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700"
+            >
+              {i18n.language === 'ar' ? 'عرض حالة التقديم' : 'View application status'}
+            </button>
+          )}
+        </div>
       )}
 
       {items.length === 0 ? (

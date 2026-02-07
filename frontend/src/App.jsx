@@ -7,6 +7,7 @@ import BrowseServices from './pages/BrowseServices';
 import ServiceDetails from './pages/ServiceDetails';
 import HowItWorks from './pages/HowItWorks';
 import BecomeTaskerPublic from './pages/BecomeTaskerPublic';
+import BecomeTaskerSignupPage from './pages/BecomeTaskerSignupPage';
 import DashboardPage from './pages/DashboardPage';
 import MyTasksPage from './pages/MyTasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
@@ -71,6 +72,14 @@ function RoleBasedRoute({ allowedRoles, children }) {
   return children;
 }
 
+function DashboardIndexRoute() {
+  const { user } = useAuthStore();
+  if (user?.role === 'tasker') {
+    return <Navigate to="/dashboard/tasker" replace />;
+  }
+  return <DashboardPage />;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -82,6 +91,7 @@ function App() {
         <Route path="/services/:categoryId" element={<ServiceDetails />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/become-tasker" element={<BecomeTaskerPublic />} />
+        <Route path="/become-tasker/signup" element={<BecomeTaskerSignupPage />} />
         <Route path="/book/:serviceId" element={<BookRedirect />} />
         <Route path="/tasks/create" element={<TaskCreateRedirect />} />
         <Route path="/login" element={<LoginPage />} />
@@ -120,7 +130,7 @@ function App() {
           }
         >
           {/* Client routes */}
-          <Route index element={<DashboardPage />} />
+          <Route index element={<DashboardIndexRoute />} />
           <Route path="my-tasks" element={<MyTasksPage />} />
           <Route path="tasks/:taskId/find-tasker" element={<FindTaskerPage />} />
           <Route path="tasks/:taskId" element={<TaskDetailPage />} />

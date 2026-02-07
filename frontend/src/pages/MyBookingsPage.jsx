@@ -228,12 +228,6 @@ function MyBookingsPage() {
         <div className="empty-state">
           <p>{t('tasker.noBookings')}</p>
           <p className="hint">عندما تقبل مهمة، ستظهر هنا</p>
-          <button
-            className="primary-btn"
-            onClick={() => navigate('/tasker/tasks/available')}
-          >
-            {t('tasker.browseAvailable')}
-          </button>
         </div>
       ) : (
         <>

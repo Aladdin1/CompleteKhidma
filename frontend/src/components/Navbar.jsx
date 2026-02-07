@@ -120,9 +120,6 @@ const Navbar = ({ variant = 'auto' }) => {
                     <Link to="/dashboard/tasker" className={`text-sm ${linkClass}`}>
                       {i18n.language === 'ar' ? 'لوحة المهمات' : 'Dashboard'}
                     </Link>
-                    <Link to="/dashboard/tasker/tasks/available" className={`text-sm ${linkClass}`}>
-                      {i18n.language === 'ar' ? 'المهام المتاحة' : 'Available Tasks'}
-                    </Link>
                     <Link to="/dashboard/tasker/tasks/offered" className={`text-sm ${linkClass}`}>
                       {i18n.language === 'ar' ? 'عروضي' : 'My Offers'}
                     </Link>
@@ -175,9 +172,6 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                     <Link to="/dashboard/profile" className={`text-sm ${linkClass}`}>
                       {t('profile.title')}
-                    </Link>
-                    <Link to="/dashboard/become-tasker" className={`text-sm ${linkClass}`}>
-                      {i18n.language === 'ar' ? 'أصبح مهمات' : 'Become a Tasker'}
                     </Link>
                   </>
                 )}
@@ -290,9 +284,6 @@ const Navbar = ({ variant = 'auto' }) => {
                     <Link to="/dashboard/tasker" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {i18n.language === 'ar' ? 'لوحة المهمات' : 'Dashboard'}
                     </Link>
-                    <Link to="/dashboard/tasker/tasks/available" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
-                      {i18n.language === 'ar' ? 'المهام المتاحة' : 'Available Tasks'}
-                    </Link>
                     <Link to="/dashboard/tasker/tasks/offered" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {i18n.language === 'ar' ? 'عروضي' : 'My Offers'}
                     </Link>
@@ -337,9 +328,6 @@ const Navbar = ({ variant = 'auto' }) => {
                     </Link>
                     <Link to="/dashboard/profile" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
                       {t('profile.title')}
-                    </Link>
-                    <Link to="/dashboard/become-tasker" className={`block py-2 ${linkClass}`} onClick={closeMobile}>
-                      {i18n.language === 'ar' ? 'أصبح مهمات' : 'Become a Tasker'}
                     </Link>
                   </>
                 )}

@@ -128,8 +128,6 @@ function TaskerProfilePage() {
     setSaving(true);
     try {
       const updated = await userAPI.updateMe({
-        full_name: formData.full_name,
-        email: formData.email,
         locale: formData.locale,
       });
       updateUser(updated);
@@ -316,7 +314,8 @@ function TaskerProfilePage() {
             <input
               type="text"
               value={formData.full_name}
-              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+              readOnly
+              className="readonly-input"
               placeholder={t('profile.fullNamePlaceholder')}
             />
           </div>
@@ -325,7 +324,8 @@ function TaskerProfilePage() {
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              readOnly
+              className="readonly-input"
               placeholder="example@email.com"
               dir="ltr"
             />

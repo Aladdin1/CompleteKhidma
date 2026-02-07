@@ -3,6 +3,8 @@
  * Used by index.js for production and by tests via Supertest.
  */
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -11,6 +13,9 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { pagination } from './middleware/pagination.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -26,6 +31,9 @@ app.use(pagination);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'khidma-backend', timestamp: new Date().toISOString() });
 });
+
+// Serve uploaded media files (must match media upload path: cwd/public/media)
+app.use('/media', express.static(path.join(process.cwd(), 'public', 'media')));
 
 app.use('/api/v1', apiRoutes);
 

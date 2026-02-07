@@ -175,6 +175,9 @@ To become the default operating system for local, on-demand human labor.
 - **US-T-003**: As a tasker, I want to pass a criminal background check, so that I'm eligible to work on the platform.
 - **US-T-004**: As a tasker, I want to set up my profile with skills, experience, and photos, so that clients can see my qualifications.
 - **US-T-005**: As a tasker, I want to select which task categories I can perform, so that I only see relevant tasks.
+- **US-T-120**: As a new tasker, after uploading my ID and criminal record documents and submitting my application, I want to be redirected to the Tasker Dashboard (not my profile), so that I see my application status and know what to expect next.
+- **US-T-121**: As a tasker with a pending application, I want to see a clear "Application under review" banner on my dashboard and not be offered any tasks until my application is approved and I am verified by admin, so that I understand I must wait for verification before I can work.
+- **US-T-122**: As a tasker, I want my Full Name and Email to be read-only after my account is created, so that my identity details cannot be changed and remain consistent for verification and client trust.
 
 #### Availability & Scheduling
 - **US-T-006**: As a tasker, I want to set my weekly availability schedule, so that I only receive task offers when I'm free.
@@ -200,6 +203,8 @@ To become the default operating system for local, on-demand human labor.
 - **US-T-114**: As a tasker, I want to be notified when a client accepts my quote, so that I can confirm the booking and proceed with the task.
 - **US-T-118**: As a tasker, I want to see tasks where the client accepted my quote (booking status “offered”) in My Offers and in My Bookings, so that I can confirm the booking and start the task.
 - **US-T-119**: As a tasker, when a client posted a task as “choose specific taskers”, I want to see that task only if the client requested a quote from me, so that I am not shown or able to act on tasks I was not invited to.
+- **US-T-123**: As a tasker, I want to navigate to all tasker features (My Offers, Quote requests, Open for bids, My Bookings, Profile, Application status) via the Navbar only, so that the dashboard remains clean and focused on stats and status; quick action buttons are not shown on the dashboard.
+- **US-T-124**: As a tasker, I want the Application Status page to show only my verification status (verified, under review, or rejected) without the optional identity verification (national ID last 4 digits) section, so that the flow is simplified and verification is handled during onboarding.
 - **US-T-115**: As a tasker, I want to be notified when a client declines my quote, so that I know not to expect that job.
 - **US-T-116**: As a tasker, I want to set the price/cost for my work via my bid (quote), so that clients see my rate and accept or decline before we commit.
 - **US-T-117**: As a tasker, I want to discover tasks that are open for bids and submit my bid (amount, message), so that clients can compare my offer with others and choose.

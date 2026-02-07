@@ -222,6 +222,42 @@ export const requireRole = (...roles) => {
 };
 
 /**
+ * Require tasker to be verified (status 'verified' or 'active').
+ * Unverified taskers (status 'applied') cannot browse/accept tasks until admin approves.
+ */
+export const requireVerifiedTasker = async (req, res, next) => {
+  if (!req.user || req.user.role !== 'tasker') {
+    return next();
+  }
+  try {
+    const result = await pool.query(
+      'SELECT status FROM tasker_profiles WHERE user_id = $1',
+      [req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(403).json({
+        error: {
+          code: 'TASKER_NOT_VERIFIED',
+          message: 'Your application is pending. You will be able to browse tasks once your application is approved by our team.'
+        }
+      });
+    }
+    const status = result.rows[0].status;
+    if (status !== 'verified' && status !== 'active') {
+      return res.status(403).json({
+        error: {
+          code: 'TASKER_NOT_VERIFIED',
+          message: 'Your application is pending approval. You will be able to browse and accept tasks once verified by our team.'
+        }
+      });
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Admin area: allow admin/ops for all routes; allow customer_service for support-tickets and user lookup only.
  * Customer service can: handle tickets, look up client/tasker profile, create support ticket for a user.
  */

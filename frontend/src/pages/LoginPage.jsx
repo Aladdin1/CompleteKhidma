@@ -47,6 +47,8 @@ function LoginPage() {
         navigate(redirect);
       } else if (isAdminOrSupport) {
         navigate('/admin');
+      } else if (user?.role === 'tasker') {
+        navigate('/dashboard/tasker');
       } else {
         navigate('/dashboard');
       }
@@ -136,9 +138,12 @@ function LoginPage() {
       // Check for redirect parameter
       const urlParams = new URLSearchParams(window.location.search);
       const redirect = urlParams.get('redirect');
+      const userRole = response.user?.role;
       
       if (redirect) {
         navigate(redirect);
+      } else if (userRole === 'tasker') {
+        navigate('/dashboard/tasker');
       } else {
         navigate('/dashboard');
       }

@@ -20,7 +20,8 @@ const MIGRATIONS = [
   '011_tasker_verification_workflow.sql',
   '012_user_account_status_and_support_tickets.sql',
   '013_support_tickets_extended.sql',
-  '014_customer_service_role.sql'
+  '014_customer_service_role.sql',
+  '015_tasker_verification_documents.sql'
 ];
 
 async function migrate() {

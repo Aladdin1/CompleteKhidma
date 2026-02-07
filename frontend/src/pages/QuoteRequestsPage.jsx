@@ -12,6 +12,7 @@ export default function QuoteRequestsPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingVerification, setPendingVerification] = useState(false);
 
   useEffect(() => {
     loadQuoteRequests();
@@ -24,6 +25,8 @@ export default function QuoteRequestsPage() {
       const data = await taskerAPI.getQuoteRequests({ limit: 50 });
       setItems(data.items || []);
     } catch (err) {
+      const code = err.response?.data?.error?.code;
+      setPendingVerification(code === 'TASKER_NOT_VERIFIED');
       setError(err.response?.data?.error?.message || 'Failed to load quote requests');
     } finally {
       setLoading(false);
@@ -56,7 +59,18 @@ export default function QuoteRequestsPage() {
       </p>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 text-red-800 p-4 text-sm">{error}</div>
+        <div className="mb-4 rounded-lg bg-red-50 text-red-800 p-4 text-sm">
+          {error}
+          {pendingVerification && (
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/tasker/application-status')}
+              className="mt-3 px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700"
+            >
+              {i18n.language === 'ar' ? 'عرض حالة التقديم' : 'View application status'}
+            </button>
+          )}
+        </div>
       )}
 
       {items.length === 0 ? (

@@ -12,15 +12,15 @@ import useAuthStore from '@/store/authStore';
 const LandingPage = () => {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard', { replace: true });
+      navigate(user?.role === 'tasker' ? '/dashboard/tasker' : '/dashboard', { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user?.role, navigate]);
 
   const handleSearch = (e) => {
     e.preventDefault();
